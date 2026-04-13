@@ -1,0 +1,140 @@
+media_player:
+  - platform: speaker
+    id: speaker_media_player
+    name: "Media Player"
+    # task_stack_in_psram: true
+    codec_support_enabled: NEEDED
+    volume_increment: 0.05
+    volume_min: 0.55
+    volume_max: 0.85
+    media_pipeline:
+      speaker: media_speaker
+      sample_rate: 48000
+      format: FLAC
+    announcement_pipeline:
+      speaker: va_speaker
+      sample_rate: 48000
+      format: FLAC
+
+micro_wake_word:
+  id: mww
+  microphone:
+    microphone: microphone_aec
+    channels: 0
+    gain_factor: 4
+  stop_after_detection: false
+  models:
+    - model: github://esphome/micro-wake-word-models/models/alexa.json@main
+  on_wake_word_detected:
+    then:
+      - voice_assistant.start:
+          # Passes the detected wake word to Home Assistant
+          wake_word: !lambda return wake_word;
+
+voice_assistant:
+  id: va
+  microphone:
+    microphone: microphone_aec
+    channels: 0
+    gain_factor: 32
+  media_player: speaker_media_player
+  micro_wake_word: mww
+  noise_suppression_level: 0
+  auto_gain: 0 dBFS
+  volume_multiplier: 1.0
+  
+  on_client_connected:
+    # Home Assistant connected and waiting for commands.
+    - logger.log: "[VA] Client connected"
+    - micro_wake_word.start:
+    - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+  on_client_disconnected:
+    # Home Assistant disconnected.
+    - logger.log: "[VA] Client disconnected"
+    - voice_assistant.stop:
+    - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
+  on_intent_start:
+    # Intent processing started.
+    - logger.log: "[VA] Intent started"
+  on_intent_progress:
+    # Intent progress update (e.g., TTS URL received).
+    - logger.log: "[VA] Intent progress"
+    - if:
+        condition:
+          # A nonempty x variable means a streaming TTS url was sent to the media player
+          lambda: 'return !x.empty();'
+        then:
+          - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
+  on_intent_end:
+    # Intent processing finished.
+    - logger.log: "[VA] Intent ended"
+  on_listening:
+    # Microphone started listening.
+    - logger.log: "[VA] Listening"
+    - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
+  on_start:
+    # Assist pipeline started.
+    - logger.log: "[VA] Started"
+    # Duck media audio when the voice assistant starts
+    - mixer_speaker.apply_ducking:
+        id: media_speaker_mix
+        decibel_reduction: 30
+        duration: 0.0s
+  on_wake_word_detected:
+    # Wake word detected.
+    - logger.log: "[VA] Wake word detected"
+  on_end:
+    # Voice assistant finished all tasks.
+    - logger.log: "[VA] Ended"
+    - wait_until:
+        not:
+          voice_assistant.is_running:
+    # Stop ducking audio.
+    - mixer_speaker.apply_ducking:
+        id: media_speaker_mix
+        decibel_reduction: 0
+        duration: 0.5s
+    # If the end happened because of an error, let the error phase on for a second
+    - if:
+        condition:
+          lambda: return id(voice_assistant_phase) == ${voice_assist_error_phase_id};
+        then:
+          - delay: 1s
+    # Reset the voice assistant phase id.
+    - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+  on_stt_vad_start:
+    # Voice activity detection (VAD) started STT processing.
+    - logger.log: "[VA] STT VAD started"
+    - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
+  on_stt_vad_end:
+    # Voice activity detection (VAD) ended STT processing.
+    - logger.log: "[VA] STT VAD ended"
+    - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
+  on_stt_end:
+    # Speech-to-Text finished (text in 'x').
+    - logger.log: "[VA] STT ended"
+  on_tts_start:
+    # Text-to-Speech started (text in 'x').
+    - logger.log: "[VA] TTS started"
+    - if:
+        condition:
+          # The intent_progress trigger didn't start the TTS Reponse
+          lambda: 'return id(voice_assistant_phase) != ${voice_assist_replying_phase_id};'
+        then:
+          - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
+  on_tts_end:
+    # Text-to-Speech finished (audio URL in 'x').
+    - logger.log: "[VA] TTS ended"
+  on_idle:
+    - logger.log: "[VA] Idle"
+  on_error:
+    # Error encountered (code and message available).
+    # Only set the error phase if the error code is different than duplicate_wake_up_detected or stt-no-text-recognized
+    - if:
+        condition:
+          and:
+            - lambda: return code != "duplicate_wake_up_detected";
+            - lambda: return code != "stt-no-text-recognized";
+        then:
+          - logger.log: "[VA] Error"
+          - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};

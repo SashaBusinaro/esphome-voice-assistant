@@ -1,6 +1,21 @@
 substitutions:
   name: "waveshare"
   friendly_name: "Waveshare"
+  # Phases of the Voice Assistant
+  # The voice assistant is ready to be triggered by a wake word
+  voice_assist_idle_phase_id: '1'
+  # The voice assistant is waiting for a voice command (after being triggered by the wake word)
+  voice_assist_waiting_for_command_phase_id: '2'
+  # The voice assistant is listening for a voice command
+  voice_assist_listening_for_command_phase_id: '3'
+  # The voice assistant is currently processing the command
+  voice_assist_thinking_phase_id: '4'
+  # The voice assistant is replying to the command
+  voice_assist_replying_phase_id: '5'
+  # The voice assistant is not ready
+  voice_assist_not_ready_phase_id: '10'
+  # The voice assistant encountered an error
+  voice_assist_error_phase_id: '11'
 
 esphome:
   name: "${name}"
@@ -36,13 +51,6 @@ esphome:
             }
 
             ESP_LOGI("es7210_tdm", "TDM config applied successfully!");
-    # - priority: 375
-    #   then:
-    #     - switch.turn_on: internal_speaker_amp
-    - priority: -100
-      then:
-        - delay: 5sec
-        - sound_level.start:
 
 esp32:
   variant: esp32s3
@@ -57,11 +65,13 @@ esp32:
       CONFIG_SPIRAM_RODATA: "y"                 # Move read-only data to PSRAM
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"    # TLS buffers in PSRAM (saves ~40KB internal)
 
-      CONFIG_LWIP_MAX_SOCKETS: "16"
-
 psram:
   mode: octal
   speed: 80MHz
+  ignore_not_found: false # Higher performance optimization settings for networking
+
+network:
+  enable_high_performance: true
 
 # Enable logging
 logger:
@@ -84,41 +94,14 @@ wifi:
 
 packages:
   audio: !include core/audio.yaml
+  va: !include core/va.yaml
 
-number:
-  - platform: i2s_audio_duplex
-    i2s_audio_duplex_id: i2s_duplex
-    mic_gain:
-      name: "Software Mic Gain"
-    speaker_volume:
-      name: "Speaker Volume"
+globals:
+  - id: voice_assistant_phase
+    type: int
+    restore_value: no
+    initial_value: ${voice_assist_not_ready_phase_id}
 
-media_player:
-  - platform: speaker
-    id: external_media_player
-    name: "Media Player"
-    task_stack_in_psram: true
-    media_pipeline:
-      speaker: media_speaker
-      sample_rate: 48000
-      format: FLAC
-    announcement_pipeline:
-      speaker: va_speaker
-      sample_rate: 48000
-      format: FLAC
-
-sensor:
-  - platform: sound_level
-    microphone: 
-      microphone: microphone_aec
-      # channels: 0
-    passive: false
-    peak:
-      name: "Peak Loudness"
-
-intercom_api:
-  id: intercom
-  mode: simple
-  microphone: microphone_aec
-  speaker: va_speaker
-  aec_id: aec_processor
+button:
+  - platform: restart
+    name: "Reboot"

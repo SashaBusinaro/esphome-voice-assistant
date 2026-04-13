@@ -1,6 +1,6 @@
 external_components:
   - source: github://n-IA-hane/esphome-intercom
-    components: [intercom_api, i2s_audio_duplex, esp_aec]
+    components: [i2s_audio_duplex, esp_aec]
     refresh: 24h
 
 i2c:
@@ -17,7 +17,7 @@ audio_dac:
     address: 0x18
     bits_per_sample: 16bit
     sample_rate: 48000
-    mic_gain: 24db
+    mic_gain: 30db
 
 audio_adc:
   - platform: es7210
@@ -26,13 +26,13 @@ audio_adc:
     address: 0x40
     bits_per_sample: 16bit
     sample_rate: 48000
-    mic_gain: 24dB
+    mic_gain: 30db
 
 esp_aec:
   id: aec_processor
   sample_rate: 16000   # AEC always operates on the 16kHz decimated stream
   filter_length: 4     # 64ms tail (4 for integrated codec, 8 for separate mic+speaker)
-  mode: voip_low_cost    # Linear-only AEC, preserves spectral features for Wake Word
+  mode: sr_low_cost    # Linear-only AEC, preserves spectral features for Wake Word
 
 i2s_audio_duplex:
   id: i2s_duplex
@@ -66,7 +66,7 @@ speaker:
     id: audio_mixer
     output_speaker: external_speaker
     num_channels: 1
-    task_stack_in_psram: true
+    # task_stack_in_psram: true
     source_speakers:
       - id: media_speaker_mix
         timeout: 10s
@@ -78,7 +78,7 @@ speaker:
   - platform: resampler
     id: va_speaker
     output_speaker: va_speaker_mix
-    task_stack_in_psram: true
+    # task_stack_in_psram: true
     bits_per_sample: 16
     sample_rate: 48000
     filters: 16
@@ -87,7 +87,7 @@ speaker:
   - platform: resampler
     id: media_speaker
     output_speaker: media_speaker_mix
-    task_stack_in_psram: true
+    # task_stack_in_psram: true
     bits_per_sample: 16
     sample_rate: 48000
     filters: 16
@@ -99,3 +99,19 @@ switch:
     pin: GPIO46
     restore_mode: ALWAYS_ON
     internal: true
+
+  - platform: i2s_audio_duplex
+    i2s_audio_duplex_id: i2s_duplex
+    aec:
+      id: aec_switch
+      name: Echo Cancellation
+      icon: mdi:ear-hearing
+      restore_mode: RESTORE_DEFAULT_ON
+
+number:
+  - platform: i2s_audio_duplex
+    i2s_audio_duplex_id: i2s_duplex
+    mic_gain:
+      name: "Software Mic Gain"
+    speaker_volume:
+      name: "Speaker Volume"
