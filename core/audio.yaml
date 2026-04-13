@@ -16,7 +16,7 @@ audio_dac:
     i2c_id: i2c_bus
     address: 0x18
     bits_per_sample: 16bit
-    sample_rate: 48000
+    sample_rate: 16000
     mic_gain: 30db
 
 audio_adc:
@@ -41,8 +41,7 @@ i2s_audio_duplex:
   i2s_mclk_pin: GPIO42
   i2s_din_pin: GPIO10
   i2s_dout_pin: GPIO8
-  sample_rate: 48000
-  output_sample_rate: 16000 # Decimated output rate for Mic/AEC/VA (16kHz)
+  sample_rate: 16000
   aec_id: aec_processor
   buffers_in_psram: true # Required for sr_low_cost memory usage
   use_tdm_reference: true
@@ -60,7 +59,7 @@ speaker:
   - platform: i2s_audio_duplex
     id: external_speaker
     i2s_audio_duplex_id: i2s_duplex
-    sample_rate: 48000
+    sample_rate: 16000
 
   - platform: mixer
     id: audio_mixer
@@ -68,30 +67,30 @@ speaker:
     num_channels: 1
     # task_stack_in_psram: true
     source_speakers:
-      - id: media_speaker_mix
+      - id: media_speaker
         timeout: 10s
         buffer_duration: 100ms
-      - id: va_speaker_mix
+      - id: va_speaker
         timeout: 10s
         buffer_duration: 100ms
   
-  - platform: resampler
-    id: va_speaker
-    output_speaker: va_speaker_mix
-    # task_stack_in_psram: true
-    bits_per_sample: 16
-    sample_rate: 48000
-    filters: 16
-    taps: 16
+  # - platform: resampler
+  #   id: va_speaker
+  #   output_speaker: va_speaker_mix
+  #   # task_stack_in_psram: true
+  #   bits_per_sample: 16
+  #   sample_rate: 48000
+  #   filters: 16
+  #   taps: 16
   
-  - platform: resampler
-    id: media_speaker
-    output_speaker: media_speaker_mix
-    # task_stack_in_psram: true
-    bits_per_sample: 16
-    sample_rate: 48000
-    filters: 16
-    taps: 16
+  # - platform: resampler
+  #   id: media_speaker
+  #   output_speaker: media_speaker_mix
+  #   # task_stack_in_psram: true
+  #   bits_per_sample: 16
+  #   sample_rate: 48000
+  #   filters: 16
+  #   taps: 16
 
 switch:
   - platform: gpio

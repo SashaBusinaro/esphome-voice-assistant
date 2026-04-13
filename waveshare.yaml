@@ -87,12 +87,8 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  fast_connect: true
-
 packages:
+  wifi: !include core/wifi.yaml
   audio: !include core/audio.yaml
   va: !include core/va.yaml
 
