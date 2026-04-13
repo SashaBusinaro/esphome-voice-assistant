@@ -13,34 +13,35 @@ esphome:
     - priority: 200
       then:
         - lambda: |-
-            // Enable ES7210 TDM mode + MIC3 for AEC reference via I2C
-            uint8_t data[2];
+            // 1. Enable ALL ADC clocks (ESPHome driver only enables ADC1+2)
+            uint8_t reg01;
+            if (!id(es7210_adc).read_byte(0x01, &reg01)) {
+              ESP_LOGE("es7210_tdm", "Failed to read reg 0x01, TDM config aborted");
+              return;
+            }
+            reg01 &= ~0x3F;  // Clear bits 0-5: enable ADC1-4 clocks + CP + BCLK
             
-            // Clock enable: clear bits [5:0] to enable all clocks
-            data[0] = 0x01; data[1] = 0x00;
-            id(i2c_bus).write(0x40, data, 2);
-            
-            // TDM mode enable (Required for ES7210 to interleave Mic and DAC feedback)
-            data[0] = 0x12; data[1] = 0x02;
-            id(i2c_bus).write(0x40, data, 2);
+            if (!id(es7210_adc).write_byte(0x01, reg01) ||
+                !id(es7210_adc).write_byte(0x12, 0x02)) {  // Enable TDM I2S mode
+              ESP_LOGE("es7210_tdm", "Failed to write clock/TDM registers");
+              return;
+            }
 
-            // MIC1 gain 30dB (Physical Mic 1)
-            data[0] = 0x43; data[1] = 0x1A;
-            id(i2c_bus).write(0x40, data, 2);
+            // 2. Set gains
+            if (!id(es7210_adc).write_byte(0x43, 0x1A) ||  // MIC1: 30dB
+                !id(es7210_adc).write_byte(0x44, 0x1A) ||  // MIC2 (AEC Reference): 30dB
+                !id(es7210_adc).write_byte(0x45, 0x1A)) {  // MIC3: 30dB
+              ESP_LOGE("es7210_tdm", "Failed to write MIC gain registers");
+              return;
+            }
 
-            // MIC2 gain 30dB (Captures the DAC analog output as AEC reference)
-            data[0] = 0x44; data[1] = 0x1A;
-            id(i2c_bus).write(0x40, data, 2);
-            
-            // MIC3 gain 30dB (Physical Mic 2)
-            data[0] = 0x45; data[1] = 0x1A;
-            id(i2c_bus).write(0x40, data, 2);
-    - priority: 375
-      then:
-        - switch.turn_on: internal_speaker_amp
+            ESP_LOGI("es7210_tdm", "TDM config applied successfully!");
+    # - priority: 375
+    #   then:
+    #     - switch.turn_on: internal_speaker_amp
     - priority: -100
       then:
-        - delay: 10sec
+        - delay: 5sec
         - sound_level.start:
 
 esp32:
@@ -55,6 +56,8 @@ esp32:
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"     # Move code to PSRAM, frees internal SRAM
       CONFIG_SPIRAM_RODATA: "y"                 # Move read-only data to PSRAM
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"    # TLS buffers in PSRAM (saves ~40KB internal)
+
+      CONFIG_LWIP_MAX_SOCKETS: "16"
 
 psram:
   mode: octal
@@ -77,6 +80,7 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  fast_connect: true
 
 packages:
   audio: !include core/audio.yaml
@@ -93,11 +97,15 @@ media_player:
   - platform: speaker
     id: external_media_player
     name: "Media Player"
+    task_stack_in_psram: true
+    media_pipeline:
+      speaker: media_speaker
+      sample_rate: 48000
+      format: FLAC
     announcement_pipeline:
       speaker: va_speaker
-      format: FLAC
       sample_rate: 48000
-      num_channels: 1
+      format: FLAC
 
 sensor:
   - platform: sound_level
@@ -107,3 +115,10 @@ sensor:
     passive: false
     peak:
       name: "Peak Loudness"
+
+intercom_api:
+  id: intercom
+  mode: simple
+  microphone: microphone_aec
+  speaker: va_speaker
+  aec_id: aec_processor
