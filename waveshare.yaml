@@ -94,9 +94,9 @@ media_player:
     id: external_media_player
     name: "Media Player"
     announcement_pipeline:
-      speaker: external_speaker
+      speaker: va_speaker
       format: FLAC
-      sample_rate: 16000
+      sample_rate: 48000
       num_channels: 1
 
 sensor:

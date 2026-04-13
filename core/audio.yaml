@@ -16,12 +16,12 @@ audio_dac:
     i2c_id: i2c_bus
     address: 0x18
     bits_per_sample: 16bit
-    sample_rate: 16000
+    sample_rate: 48000
     # mic_gain: 24db
 
 esp_aec:
   id: aec_component
-  sample_rate: 16000
+  sample_rate: 16000   # AEC always operates on the 16kHz decimated stream
   filter_length: 4     # 64ms tail (4 for integrated codec, 8 for separate mic+speaker)
   mode: sr_low_cost    # Linear-only AEC, preserves spectral features for Wake Word
 
@@ -32,7 +32,8 @@ i2s_audio_duplex:
   i2s_mclk_pin: GPIO42
   i2s_din_pin: GPIO10
   i2s_dout_pin: GPIO8
-  sample_rate: 16000
+  sample_rate: 48000
+  output_sample_rate: 16000 # Decimated output rate for Mic/AEC/VA (16kHz)
   aec_id: aec_component
   buffers_in_psram: true # Required for sr_low_cost memory usage
   use_tdm_reference: true
@@ -50,6 +51,14 @@ speaker:
   - platform: i2s_audio_duplex
     id: external_speaker
     i2s_audio_duplex_id: i2s_duplex
+  
+  - platform: resampler
+    id: va_speaker
+    output_speaker: external_speaker
+    bits_per_sample: 16
+    sample_rate: 48000
+    filters: 16
+    taps: 16
 
 switch:
   - platform: gpio
