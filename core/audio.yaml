@@ -107,6 +107,20 @@ switch:
       icon: mdi:ear-hearing
       restore_mode: RESTORE_DEFAULT_ON
 
+  - platform: template
+    id: microphone_mute
+    name: "Microphone Mute"
+    icon: "mdi:microphone-off"
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      return id(microphone_aec).get_mute_state();
+    turn_on_action:
+      - microphone.mute: microphone_aec
+    turn_off_action:
+      - microphone.unmute: microphone_aec
+
 number:
   - platform: i2s_audio_duplex
     i2s_audio_duplex_id: i2s_duplex

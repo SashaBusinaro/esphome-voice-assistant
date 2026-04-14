@@ -97,6 +97,10 @@ globals:
     type: int
     restore_value: no
     initial_value: ${voice_assist_not_ready_phase_id}
+  - id: init_in_progress
+    type: bool
+    restore_value: no
+    initial_value: 'true'
 
 button:
   - platform: restart

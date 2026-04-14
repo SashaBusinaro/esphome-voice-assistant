@@ -46,6 +46,7 @@ voice_assistant:
   on_client_connected:
     # Home Assistant connected and waiting for commands.
     - logger.log: "[VA] Client connected"
+    - lambda: id(init_in_progress) = false;
     - micro_wake_word.start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
   on_client_disconnected:
@@ -133,6 +134,7 @@ voice_assistant:
     - if:
         condition:
           and:
+            - lambda: return !id(init_in_progress);
             - lambda: return code != "duplicate_wake_up_detected";
             - lambda: return code != "stt-no-text-recognized";
         then:
