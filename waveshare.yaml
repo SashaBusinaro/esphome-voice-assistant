@@ -16,6 +16,10 @@ substitutions:
   voice_assist_not_ready_phase_id: '10'
   # The voice assistant encountered an error
   voice_assist_error_phase_id: '11'
+  
+  # LED Brightness
+  led_brightness_low: "0.4f"
+  led_brightness_high: "0.6f"
 
 esphome:
   name: "${name}"
@@ -51,6 +55,7 @@ esphome:
             }
 
             ESP_LOGI("es7210_tdm", "TDM config applied successfully!");
+        - script.execute: update_leds
 
 esp32:
   variant: esp32s3
@@ -91,6 +96,7 @@ packages:
   wifi: !include core/wifi.yaml
   audio: !include core/audio.yaml
   va: !include core/va.yaml
+  led: !include core/led.yaml
 
 globals:
   - id: voice_assistant_phase

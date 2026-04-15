@@ -1,0 +1,104 @@
+pca9554:
+  - id: 'io_expander'
+    address: 0x20
+    i2c_id: i2c_bus
+
+light:
+  - platform: esp32_rmt_led_strip
+    name: "LED Ring"
+    id: led_ring
+    pin: GPIO16
+    chipset: WS2812
+    num_leds: 24
+    rgb_order: GRB
+    color_correct: [80%, 80%, 80%] # Brightness limit
+    default_transition_length: 0s
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          transition_length: 1000ms
+          update_interval: 1000ms
+          min_brightness: 0%
+          max_brightness: 100%
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 300ms
+          update_interval: 300ms
+          min_brightness: 0%
+          max_brightness: 100%
+      - addressable_lambda:
+          name: "Spin"
+          update_interval: 50ms
+          lambda: |-
+            static uint8_t pos = 0;
+            if (initial_run) pos = 0;
+            it.all() = Color(0, 0, 0);
+            it[pos] = current_color;
+            it[(pos + it.size() - 1) % it.size()] = current_color * 100;
+            it[(pos + it.size() - 2) % it.size()] = current_color * 25;
+            pos = (pos + 1) % it.size();
+      - strobe:
+          name: "Error Flash"
+          colors:
+            - state: true
+              brightness: 100%
+              duration: 300ms
+            - state: false
+              duration: 300ms
+
+globals:
+  - id: g_applied_led
+    type: int
+    initial_value: '-1'
+
+script:
+  - id: update_leds
+    then:
+      - lambda: |-
+          int current_phase = id(voice_assistant_phase);
+          bool is_init = id(init_in_progress);
+          bool is_muted = id(microphone_aec).get_mute_state();
+          
+          int target_state = 0;
+          if (is_init) {
+            target_state = 100; // Boot
+          } else if (is_muted) {
+            target_state = 200; // Muted
+          } else {
+            target_state = current_phase;
+          }
+
+          if (target_state == id(g_applied_led)) return;
+          id(g_applied_led) = target_state;
+          
+          auto *led = id(led_ring);
+          
+          switch (target_state) {
+            case 100: // Init
+              led->turn_on().set_rgb(0.0f, 0.0f, 1.0f).set_brightness(${led_brightness_low}).set_effect("Slow Pulse").perform();
+              break;
+            case 200: // Muted
+              led->turn_on().set_rgb(1.0f, 0.2f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();
+              break;
+            case 10: // voice_assist_not_ready_phase_id
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();
+              break;
+            case 1:  // voice_assist_idle_phase_id
+              led->turn_off().perform();
+              break;
+            case 2:  // voice_assist_waiting_for_command_phase_id
+              led->turn_on().set_rgb(0.0f, 0.5f, 1.0f).set_brightness(${led_brightness_high}).set_effect("None").perform();
+              break;
+            case 4:  // voice_assist_thinking_phase_id
+              led->turn_on().set_rgb(0.0f, 0.5f, 1.0f).set_brightness(${led_brightness_high}).set_effect("Fast Pulse").perform();
+              break;
+            case 5:  // voice_assist_replying_phase_id
+              led->turn_on().set_rgb(1.0f, 1.0f, 1.0f).set_brightness(${led_brightness_high}).set_effect("None").perform();
+              break;
+            case 11: // voice_assist_error_phase_id
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(${led_brightness_high}).set_effect("Error Flash").perform();
+              break;
+            default:
+              led->turn_off().perform();
+              break;
+          }

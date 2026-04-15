@@ -118,8 +118,10 @@ switch:
       return id(microphone_aec).get_mute_state();
     turn_on_action:
       - microphone.mute: microphone_aec
+      - script.execute: update_leds
     turn_off_action:
       - microphone.unmute: microphone_aec
+      - script.execute: update_leds
 
 number:
   - platform: i2s_audio_duplex

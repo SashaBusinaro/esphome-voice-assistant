@@ -49,11 +49,13 @@ voice_assistant:
     - lambda: id(init_in_progress) = false;
     - micro_wake_word.start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+    - script.execute: update_leds
   on_client_disconnected:
     # Home Assistant disconnected.
     - logger.log: "[VA] Client disconnected"
     - voice_assistant.stop:
     - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
+    - script.execute: update_leds
   on_intent_start:
     # Intent processing started.
     - logger.log: "[VA] Intent started"
@@ -66,6 +68,7 @@ voice_assistant:
           lambda: 'return !x.empty();'
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
+          - script.execute: update_leds
   on_intent_end:
     # Intent processing finished.
     - logger.log: "[VA] Intent ended"
@@ -103,14 +106,17 @@ voice_assistant:
           - delay: 1s
     # Reset the voice assistant phase id.
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+    - script.execute: update_leds
   on_stt_vad_start:
     # Voice activity detection (VAD) started STT processing.
     - logger.log: "[VA] STT VAD started"
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
+    # - script.execute: update_leds
   on_stt_vad_end:
     # Voice activity detection (VAD) ended STT processing.
     - logger.log: "[VA] STT VAD ended"
     - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
+    - script.execute: update_leds
   on_stt_end:
     # Speech-to-Text finished (text in 'x').
     - logger.log: "[VA] STT ended"
@@ -123,6 +129,7 @@ voice_assistant:
           lambda: 'return id(voice_assistant_phase) != ${voice_assist_replying_phase_id};'
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
+          - script.execute: update_leds
   on_tts_end:
     # Text-to-Speech finished (audio URL in 'x').
     - logger.log: "[VA] TTS ended"
@@ -140,3 +147,4 @@ voice_assistant:
         then:
           - logger.log: "[VA] Error"
           - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};
+          - script.execute: update_leds
