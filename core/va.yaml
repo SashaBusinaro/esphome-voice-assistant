@@ -15,6 +15,18 @@ media_player:
       speaker: va_speaker
       sample_rate: 16000
       format: FLAC
+    on_announcement:
+      - script.execute: update_leds
+    on_play:
+      - script.execute: update_leds
+    on_pause:
+      # Must stop (paused pipeline blocks audio). Display handled here (on_idle won't fire).
+      - media_player.stop:
+      - delay: 500ms
+      - script.execute: update_leds
+    on_idle:
+      - delay: 200ms
+      - script.execute: update_leds
 
 micro_wake_word:
   id: mww

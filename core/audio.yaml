@@ -1,7 +1,9 @@
 external_components:
-  - source: github://n-IA-hane/esphome-intercom
-    components: [i2s_audio_duplex, esp_aec]
-    refresh: 24h
+  - source:
+      type: git
+      url: https://github.com/n-IA-hane/esphome-intercom
+      ref: audio-core-v2
+    components: [i2s_audio_duplex, esp_afe, audio_processor]
 
 i2c:
   id: i2c_bus
@@ -29,11 +31,19 @@ audio_adc:
     sample_rate: 16000
     mic_gain: 24db
 
-esp_aec:
-  id: aec_processor
-  sample_rate: 16000   # AEC always operates on the 16kHz decimated stream
-  filter_length: 4     # 64ms tail (4 for integrated codec, 8 for separate mic+speaker)
-  mode: sr_low_cost    # Linear-only AEC, preserves spectral features for Wake Word
+esp_afe:
+  id: afe_processor
+  type: sr
+  mode: low_cost
+  mic_num: 2
+  aec_enabled: true
+  aec_filter_length: 4
+  ns_enabled: true
+  vad_enabled: false
+  agc_enabled: true
+  se_enabled: false              # Beamforming (dual mic)
+  task_core: 1
+  task_priority: 8
 
 i2s_audio_duplex:
   id: i2s_duplex
@@ -43,12 +53,12 @@ i2s_audio_duplex:
   i2s_din_pin: GPIO10
   i2s_dout_pin: GPIO8
   sample_rate: 16000
-  aec_id: aec_processor
+  processor_id: afe_processor
   buffers_in_psram: true # Required for sr_low_cost memory usage
   use_tdm_reference: true
   tdm_total_slots: 4
-  tdm_mic_slot: 0
-  tdm_ref_slot: 1
+  tdm_mic_slots: [0, 2]        # Slot 0 = mic1, slot 2 = mic2
+  tdm_ref_slot: 1              # Slot 1 = DAC feedback reference
 
 # Post AEC processing
 microphone:
@@ -82,12 +92,22 @@ switch:
     restore_mode: ALWAYS_ON
     internal: true
 
-  - platform: i2s_audio_duplex
-    i2s_audio_duplex_id: i2s_duplex
+  - platform: esp_afe
+    esp_afe_id: afe_processor
     aec:
-      id: aec_switch
-      name: Echo Cancellation
-      icon: mdi:ear-hearing
+      name: "Echo Cancellation"
+      restore_mode: RESTORE_DEFAULT_ON
+    se:
+      name: "Beamforming"
+      restore_mode: RESTORE_DEFAULT_ON
+    ns:
+      name: "Noise Suppression"
+      restore_mode: RESTORE_DEFAULT_ON
+    vad:
+      name: "Voice Detection"
+      restore_mode: RESTORE_DEFAULT_OFF
+    agc:
+      name: "Auto Gain Control"
       restore_mode: RESTORE_DEFAULT_ON
 
   - platform: template
@@ -115,3 +135,48 @@ number:
       name: "Speaker Volume"
     mic_gain_pre_aec:
       name: "Mic Gain Pre AEC"
+
+select:
+  - platform: template
+    name: AEC Mode
+    id: aec_mode_select
+    icon: mdi:tune-vertical
+    entity_category: config
+    options:
+      - "sr_low_cost"
+      - "sr_high_perf"
+      - "voip_low_cost"
+      - "voip_high_perf"
+    initial_option: "sr_low_cost"
+    optimistic: true
+    restore_value: true
+    set_action:
+      - if:
+          condition:
+            lambda: 'return id(init_in_progress);'
+          then:
+            - logger.log: "AEC mode select: skipping during boot"
+          else:
+            - if:
+                condition:
+                  - voice_assistant.is_running:
+                then:
+                  - logger.log:
+                      level: WARN
+                      format: "Cannot switch AEC mode during active VA"
+                else:
+                  - logger.log:
+                      format: "Switching AEC mode to %s"
+                      args: ['x.c_str()']
+                  - micro_wake_word.stop:
+                  - i2s_audio_duplex.stop: i2s_duplex
+                  - esp_afe.set_mode:
+                      id: afe_processor
+                      mode: !lambda 'return x;'
+                  - i2s_audio_duplex.start: i2s_duplex
+                  - delay: 300ms
+                  - if:
+                      condition:
+                        switch.is_off: microphone_mute
+                      then:
+                        - micro_wake_word.start:

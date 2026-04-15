@@ -69,6 +69,10 @@ esp32:
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"     # Move code to PSRAM, frees internal SRAM
       CONFIG_SPIRAM_RODATA: "y"                 # Move read-only data to PSRAM
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"    # TLS buffers in PSRAM (saves ~40KB internal)
+      
+      CONFIG_LWIP_MAX_SOCKETS: "16"
+      CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "2048"
+      CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "98304"
 
 psram:
   mode: octal
@@ -176,35 +180,3 @@ number:
       - logger.log:
           format: "[VA] Set suppression to %.0f"
           args: ["x"]
-
-  # - platform: template
-  #   id: volume_multiplier
-  #   name: "VA Volume Multiplier"
-  #   entity_category: config
-  #   min_value: 1
-  #   max_value: 64
-  #   step: 1
-  #   restore_value: true
-  #   initial_value: 1
-  #   set_action:
-  #     - lambda: |-
-  #         id(va).set_volume_multiplier(x);
-  #     - logger.log:
-  #         format: "[VA] Set volume multiplier to %.0f"
-  #         args: ["x"]
-
-  # - platform: template
-  #   id: auto_gain
-  #   name: "VA Auto Gain"
-  #   entity_category: config
-  #   min_value: 0
-  #   max_value: 31
-  #   step: 1
-  #   restore_value: true
-  #   initial_value: 0
-  #   set_action:
-  #     - lambda: |-
-  #         id(va).set_auto_gain(x);
-  #     - logger.log:
-  #         format: "[VA] Set auto gain to %.0f"
-  #         args: ["x"]
