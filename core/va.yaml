@@ -19,9 +19,10 @@ media_player:
 micro_wake_word:
   id: mww
   microphone:
+    id: mww_mic
     microphone: microphone_aec
     channels: 0
-    gain_factor: 4
+    gain_factor: 64
   stop_after_detection: false
   models:
     - model: github://esphome/micro-wake-word-models/models/alexa.json@main
@@ -34,9 +35,10 @@ micro_wake_word:
 voice_assistant:
   id: va
   microphone:
+    id: va_mic
     microphone: microphone_aec
     channels: 0
-    gain_factor: 32
+    gain_factor: 64
   media_player: speaker_media_player
   micro_wake_word: mww
   noise_suppression_level: 0

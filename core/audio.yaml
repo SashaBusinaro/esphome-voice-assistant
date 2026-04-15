@@ -8,6 +8,7 @@ i2c:
   scl: GPIO14
   sda: GPIO15
   frequency: 100kHz # Initialization stability
+  scan: false
 
 # Speaker Codec
 audio_dac:
@@ -17,7 +18,7 @@ audio_dac:
     address: 0x18
     bits_per_sample: 16bit
     sample_rate: 16000
-    mic_gain: 30db
+    mic_gain: 24db
 
 audio_adc:
   - platform: es7210
@@ -25,8 +26,8 @@ audio_adc:
     i2c_id: i2c_bus
     address: 0x40
     bits_per_sample: 16bit
-    sample_rate: 48000
-    mic_gain: 30db
+    sample_rate: 16000
+    mic_gain: 24db
 
 esp_aec:
   id: aec_processor
@@ -73,24 +74,6 @@ speaker:
       - id: va_speaker
         timeout: 10s
         buffer_duration: 100ms
-  
-  # - platform: resampler
-  #   id: va_speaker
-  #   output_speaker: va_speaker_mix
-  #   # task_stack_in_psram: true
-  #   bits_per_sample: 16
-  #   sample_rate: 48000
-  #   filters: 16
-  #   taps: 16
-  
-  # - platform: resampler
-  #   id: media_speaker
-  #   output_speaker: media_speaker_mix
-  #   # task_stack_in_psram: true
-  #   bits_per_sample: 16
-  #   sample_rate: 48000
-  #   filters: 16
-  #   taps: 16
 
 switch:
   - platform: gpio
@@ -130,3 +113,5 @@ number:
       name: "Software Mic Gain"
     speaker_volume:
       name: "Speaker Volume"
+    mic_gain_pre_aec:
+      name: "Mic Gain Pre AEC"

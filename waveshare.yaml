@@ -47,9 +47,9 @@ esphome:
             }
 
             // 2. Set gains
-            if (!id(es7210_adc).write_byte(0x43, 0x1A) ||  // MIC1: 30dB
+            if (!id(es7210_adc).write_byte(0x43, 0x18) ||  // MIC1: 24dB
                 !id(es7210_adc).write_byte(0x44, 0x1A) ||  // MIC2 (AEC Reference): 30dB
-                !id(es7210_adc).write_byte(0x45, 0x1A)) {  // MIC3: 30dB
+                !id(es7210_adc).write_byte(0x45, 0x18)) {  // MIC3: 24dB
               ESP_LOGE("es7210_tdm", "Failed to write MIC gain registers");
               return;
             }
@@ -111,3 +111,100 @@ globals:
 button:
   - platform: restart
     name: "Reboot"
+
+number: 
+  - platform: template
+    id: mic_gain_db
+    name: "Mic Gain (ES7210 dB)"
+    entity_category: config
+    min_value: 0
+    max_value: 36
+    step: 3
+    restore_value: true
+    initial_value: 32
+    set_action:
+      - lambda: |-
+          id(es7210_adc).set_mic_gain(x);   // adjust PGA on the fly
+      - logger.log:
+          format: "[MIC] Set ES7210 gain to %.0f dB"
+          args: ["x"]
+
+  - platform: template
+    id: va_mic_gain_factor
+    name: "VA MIC Gain Factor"
+    entity_category: config
+    min_value: 1
+    max_value: 64
+    step: 1
+    restore_value: true
+    initial_value: 64
+    set_action:
+      - lambda: |-
+          id(va_mic).set_gain_factor(x);
+      - logger.log:
+          format: "[VA MIC] Set gain factor to %.0f"
+          args: ["x"]
+
+  - platform: template
+    id: mww_mic_gain_factor
+    name: "MWW MIC Gain Factor"
+    entity_category: config
+    min_value: 1
+    max_value: 64
+    step: 1
+    restore_value: true
+    initial_value: 64
+    set_action:
+      - lambda: |-
+          id(mww_mic).set_gain_factor(x);
+      - logger.log:
+          format: "[MWW MIC] Set gain factor to %.0f"
+          args: ["x"]
+
+  - platform: template
+    id: noise_suppression
+    name: "VA Noise Suppression"
+    entity_category: config
+    min_value: 0
+    max_value: 4
+    step: 1
+    restore_value: true
+    initial_value: 0
+    set_action:
+      - lambda: |-
+          id(va).set_noise_suppression_level(x);
+      - logger.log:
+          format: "[VA] Set suppression to %.0f"
+          args: ["x"]
+
+  # - platform: template
+  #   id: volume_multiplier
+  #   name: "VA Volume Multiplier"
+  #   entity_category: config
+  #   min_value: 1
+  #   max_value: 64
+  #   step: 1
+  #   restore_value: true
+  #   initial_value: 1
+  #   set_action:
+  #     - lambda: |-
+  #         id(va).set_volume_multiplier(x);
+  #     - logger.log:
+  #         format: "[VA] Set volume multiplier to %.0f"
+  #         args: ["x"]
+
+  # - platform: template
+  #   id: auto_gain
+  #   name: "VA Auto Gain"
+  #   entity_category: config
+  #   min_value: 0
+  #   max_value: 31
+  #   step: 1
+  #   restore_value: true
+  #   initial_value: 0
+  #   set_action:
+  #     - lambda: |-
+  #         id(va).set_auto_gain(x);
+  #     - logger.log:
+  #         format: "[VA] Set auto gain to %.0f"
+  #         args: ["x"]
