@@ -90,6 +90,7 @@ voice_assistant:
     # Microphone started listening.
     - logger.log: "[VA] Listening"
     - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
+    - script.execute: update_leds
   on_start:
     # Assist pipeline started.
     - logger.log: "[VA] Started"
