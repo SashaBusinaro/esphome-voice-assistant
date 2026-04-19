@@ -65,7 +65,8 @@ speaker:
   - platform: mixer
     id: audio_mixer
     output_speaker: external_speaker
-    num_channels: 1
+    # # num_channels: 1
+    # queue_mode: true
     # task_stack_in_psram: true
     source_speakers:
       - id: media_speaker
@@ -102,9 +103,11 @@ switch:
     turn_on_action:
       - microphone.mute: microphone_aec
       - script.execute: update_leds
+      - script.execute: update_ui
     turn_off_action:
       - microphone.unmute: microphone_aec
       - script.execute: update_leds
+      - script.execute: update_ui
 
 number:
   - platform: i2s_audio_duplex

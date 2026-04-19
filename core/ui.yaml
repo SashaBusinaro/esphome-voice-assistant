@@ -15,22 +15,57 @@ lvgl:
     - id: main_page
       bg_color: 0x000000
       widgets:
+        # Main status arc — animated via lambda
+        - arc:
+            id: ring_arc
+            align: CENTER
+            width: 440
+            height: 440
+            start_angle: 0
+            end_angle: 360
+            rotation: 270
+            min_value: 0
+            max_value: 360
+            value: 90
+            adjustable: false
+            arc_color: 0x08080e
+            arc_width: 6
+            arc_rounded: true
+            indicator:
+              arc_color: 0x303030
+              arc_width: 6
+              arc_rounded: true
+
+        # Center status dot
+        - obj:
+            id: center_dot
+            align: CENTER
+            width: 12
+            height: 12
+            radius: 32767
+            bg_color: 0x181820
+            bg_opa: 47%
+            border_width: 0
+            pad_all: 0
+
+        # Volume minus (left) — subtle indicator
         - line:
             id: vol_minus_line
             align: LEFT_MID
-            x: 35
+            x: 40
             points:
-              - 0, 3
-              - 50, 3
-            line_width: 6
-            line_color: 0xFFFFFF
+              - 0, 2
+              - 24, 2
+            line_width: 3
+            line_color: 0x444450
             line_rounded: true
+        # Volume plus (right) — subtle indicator
         - obj:
             id: vol_plus_container
             align: RIGHT_MID
-            x: -10
-            width: 70
-            height: 70
+            x: -18
+            width: 44
+            height: 44
             bg_opa: TRANSP
             border_width: 0
             pad_all: 0
@@ -38,28 +73,19 @@ lvgl:
               - line:
                   id: vol_plus_h
                   points:
-                    - 10, 35
-                    - 60, 35
-                  line_width: 6
-                  line_color: 0xFFFFFF
+                    - 10, 22
+                    - 34, 22
+                  line_width: 3
+                  line_color: 0x444450
                   line_rounded: true
               - line:
                   id: vol_plus_v
                   points:
-                    - 35, 10
-                    - 35, 60
-                  line_width: 6
-                  line_color: 0xFFFFFF
+                    - 22, 10
+                    - 22, 34
+                  line_width: 3
+                  line_color: 0x444450
                   line_rounded: true
-        - obj:
-            id: blob_obj
-            align: CENTER
-            width: 60
-            height: 60
-            radius: 32767
-            bg_color: 0x303030
-            border_width: 0
-            pad_all: 0
 
 script:
   - id: update_ui
@@ -69,7 +95,7 @@ script:
           int current_phase = id(voice_assistant_phase);
           bool is_init = id(init_in_progress);
           bool is_muted = id(microphone_aec).get_mute_state();
-          bool is_vol_zero = id(speaker_media_player).volume <= 0.01f;
+          bool is_vol_zero = id(speaker_media_player).volume <= 0.01f || id(speaker_media_player).is_muted();
 
           int target_state = 0;
           if (is_init) {
@@ -85,76 +111,106 @@ script:
           if (target_state == id(g_applied_ui)) return;
           id(g_applied_ui) = target_state;
 
-          lv_obj_t *blob = id(blob_obj);
+          lv_obj_t *arc = id(ring_arc);
+          lv_obj_t *dot = id(center_dot);
 
-          // Stop any running animation on the blob
-          lv_anim_del(blob, nullptr);
+          // Stop all running animations on the arc
+          lv_anim_del(arc, nullptr);
+          // Reset opacity so previous pulse doesn't bleed into new state
+          lv_obj_set_style_arc_opa(arc, 255, LV_PART_INDICATOR);
+
+          // Idle: completely dark — hide arc and dot
+          if (target_state == 1) {
+            lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+
+          lv_obj_clear_flag(arc, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(dot, LV_OBJ_FLAG_HIDDEN);
 
           lv_color_t color;
-          int32_t start_size, end_size;
-          uint32_t anim_ms = 0;
+          uint16_t arc_end = 360;
+          bool do_spin = false;
+          uint32_t spin_ms = 0;
+          bool do_pulse = false;
+          uint32_t pulse_ms = 0;
 
           switch (target_state) {
-            case 100: // Init: dim blue slow pulse
-              color = lv_color_hex(0x0044CC);
-              start_size = 60; end_size = 100; anim_ms = 1500;
+            case 100: // Init: blue arc, spinning
+              color = lv_color_hex(0x0066FF);
+              arc_end = 60;
+              do_spin = true; spin_ms = 2500;
               break;
-            case 10:  // not_ready: dark red static
+            case 10:  // Not ready: dark red, full ring, static
               color = lv_color_hex(0x880000);
-              start_size = end_size = 60;
+              arc_end = 360;
               break;
-            case 1:   // idle: dim gray slow breathe
-              color = lv_color_hex(0x303030);
-              start_size = 50; end_size = 70; anim_ms = 3000;
-              break;
-            case 2:   // waiting/listening: blue expanded pulse
+            case 2:   // Listening: bright blue, full ring, pulsing
             case 3:
               color = lv_color_hex(0x0088FF);
-              start_size = 120; end_size = 200; anim_ms = 1000;
+              arc_end = 360;
+              do_pulse = true; pulse_ms = 1200;
               break;
-            case 4:   // thinking: dark blue fast pulse
-              color = lv_color_hex(0x0055CC);
-              start_size = 100; end_size = 160; anim_ms = 400;
+            case 4:   // Thinking: blue, full ring, fast spin
+              color = lv_color_hex(0x0066FF);
+              arc_end = 360;
+              do_spin = true; spin_ms = 1000;
               break;
-            case 5:   // replying: white large pulse
-              color = lv_color_hex(0xFFFFFF);
-              start_size = 150; end_size = 220; anim_ms = 700;
+            case 5:   // Replying: white, full ring, gentle pulse
+              color = lv_color_hex(0xEEEEFF);
+              arc_end = 360;
+              do_pulse = true; pulse_ms = 800;
               break;
-            case 11:  // error: red fast flash
+            case 11:  // Error: red, full ring, fast flash
               color = lv_color_hex(0xFF0000);
-              start_size = 80; end_size = 130; anim_ms = 300;
+              arc_end = 360;
+              do_pulse = true; pulse_ms = 300;
               break;
-            case 200: // muted: orange static
+            case 200: // Muted: orange, full ring, static
               color = lv_color_hex(0xFF4400);
-              start_size = end_size = 80;
+              arc_end = 360;
               break;
-            case 300: // vol=0: yellow static
+            case 300: // Vol=0: yellow, full ring, static
               color = lv_color_hex(0xFFCC00);
-              start_size = end_size = 80;
+              arc_end = 360;
               break;
             default:
-              color = lv_color_hex(0x101010);
-              start_size = end_size = 60;
+              color = lv_color_hex(0x0a0a14);
+              arc_end = 90;
               break;
           }
 
-          // Apply color and initial size
-          lv_obj_set_style_bg_color(blob, color, LV_PART_MAIN);
-          lv_obj_set_size(blob, start_size, start_size);
-          lv_obj_align(blob, LV_ALIGN_CENTER, 0, 0);
+          // Apply indicator color, arc span, and dot color
+          lv_obj_set_style_arc_color(arc, color, LV_PART_INDICATOR);
+          lv_arc_set_angles(arc, 0, arc_end);
+          lv_obj_set_style_bg_color(dot, color, LV_PART_MAIN);
 
-          // Start symmetric pulse animation if animated state
-          if (anim_ms > 0 && start_size != end_size) {
+          if (do_spin) {
             lv_anim_t a;
             lv_anim_init(&a);
-            lv_anim_set_var(&a, blob);
+            lv_anim_set_var(&a, arc);
             lv_anim_set_exec_cb(&a, [](void *obj, int32_t v) {
-              lv_obj_set_size((lv_obj_t *)obj, v, v);
-              lv_obj_align((lv_obj_t *)obj, LV_ALIGN_CENTER, 0, 0);
+              lv_arc_set_rotation((lv_obj_t *)obj, (uint16_t)v);
             });
-            lv_anim_set_values(&a, start_size, end_size);
-            lv_anim_set_time(&a, anim_ms);
-            lv_anim_set_playback_time(&a, anim_ms);
+            lv_anim_set_values(&a, 0, 360);
+            lv_anim_set_time(&a, spin_ms);
+            lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+            lv_anim_start(&a);
+          } else {
+            lv_arc_set_rotation(arc, 270); // start from 12 o'clock
+          }
+
+          if (do_pulse) {
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, arc);
+            lv_anim_set_exec_cb(&a, [](void *obj, int32_t v) {
+              lv_obj_set_style_arc_opa((lv_obj_t *)obj, (lv_opa_t)v, LV_PART_INDICATOR);
+            });
+            lv_anim_set_values(&a, 60, 255);
+            lv_anim_set_time(&a, pulse_ms);
+            lv_anim_set_playback_time(&a, pulse_ms);
             lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
             lv_anim_start(&a);
           }

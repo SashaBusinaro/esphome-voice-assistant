@@ -70,8 +70,9 @@ script:
           id: led_ring
           effect: "Volume Bar"
       - delay: 2s
-      - lambda: id(g_applied_led) = -1;
+      - lambda: id(g_applied_led) = -1; id(g_applied_ui) = -1;
       - script.execute: update_leds
+      - script.execute: update_ui
 
   - id: update_leds
     then:
@@ -80,7 +81,7 @@ script:
           bool is_init = id(init_in_progress);
           bool is_muted = id(microphone_aec).get_mute_state();
           
-          bool is_vol_zero = id(speaker_media_player).volume <= 0.01f;
+          bool is_vol_zero = id(speaker_media_player).volume <= 0.01f || id(speaker_media_player).is_muted();
 
           int target_state = 0;
           if (is_init) {

@@ -15,6 +15,9 @@ media_player:
       speaker: va_speaker
       sample_rate: 16000
       format: FLAC
+    on_state:
+      - script.execute: update_leds
+      - script.execute: update_ui
 
 micro_wake_word:
   id: mww
@@ -59,6 +62,7 @@ voice_assistant:
     - voice_assistant.stop:
     - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
     - script.execute: update_leds
+    - script.execute: update_ui
   on_intent_start:
     # Intent processing started.
     - logger.log: "[VA] Intent started"
