@@ -97,6 +97,7 @@ packages:
   audio: !include core/audio.yaml
   va: !include core/va.yaml
   led: !include core/led.yaml
+  display: !include core/display.yaml
 
 globals:
   - id: voice_assistant_phase
@@ -120,8 +121,8 @@ number:
     min_value: 0
     max_value: 36
     step: 3
-    restore_value: true
-    initial_value: 32
+    # restore_value: true
+    initial_value: 24
     set_action:
       - lambda: |-
           id(es7210_adc).set_mic_gain(x);   // adjust PGA on the fly
@@ -136,7 +137,7 @@ number:
     min_value: 1
     max_value: 64
     step: 1
-    restore_value: true
+    # restore_value: true
     initial_value: 64
     set_action:
       - lambda: |-
@@ -152,7 +153,7 @@ number:
     min_value: 1
     max_value: 64
     step: 1
-    restore_value: true
+    # restore_value: true
     initial_value: 64
     set_action:
       - lambda: |-
@@ -168,7 +169,7 @@ number:
     min_value: 0
     max_value: 4
     step: 1
-    restore_value: true
+    # restore_value: true
     initial_value: 0
     set_action:
       - lambda: |-

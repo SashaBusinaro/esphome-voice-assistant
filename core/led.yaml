@@ -45,13 +45,34 @@ light:
               duration: 300ms
             - state: false
               duration: 300ms
+      - addressable_lambda:
+          name: "Volume Bar"
+          update_interval: 100ms
+          lambda: |-
+            int num = id(g_volume_leds);
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = (i < num) ? Color(0, 120, 255) : Color(5, 5, 5);
+            }
 
 globals:
   - id: g_applied_led
     type: int
     initial_value: '-1'
+  - id: g_volume_leds
+    type: int
+    initial_value: '0'
 
 script:
+  - id: show_volume_bar
+    mode: restart
+    then:
+      - light.turn_on:
+          id: led_ring
+          effect: "Volume Bar"
+      - delay: 2s
+      - lambda: id(g_applied_led) = -1;
+      - script.execute: update_leds
+
   - id: update_leds
     then:
       - lambda: |-
@@ -59,11 +80,15 @@ script:
           bool is_init = id(init_in_progress);
           bool is_muted = id(microphone_aec).get_mute_state();
           
+          bool is_vol_zero = id(speaker_media_player).volume <= 0.01f;
+
           int target_state = 0;
           if (is_init) {
             target_state = 100; // Boot
           } else if (is_muted) {
             target_state = 200; // Muted
+          } else if (is_vol_zero) {
+            target_state = 300; // Volume at zero
           } else {
             target_state = current_phase;
           }
@@ -79,6 +104,9 @@ script:
               break;
             case 200: // Muted
               led->turn_on().set_rgb(1.0f, 0.2f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();
+              break;
+            case 300: // Volume at zero
+              led->turn_on().set_rgb(1.0f, 0.8f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();
               break;
             case 10: // voice_assist_not_ready_phase_id
               led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();
