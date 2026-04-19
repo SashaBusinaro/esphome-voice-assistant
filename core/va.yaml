@@ -52,6 +52,7 @@ voice_assistant:
     - micro_wake_word.start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
     - script.execute: update_leds
+    - script.execute: update_ui
   on_client_disconnected:
     # Home Assistant disconnected.
     - logger.log: "[VA] Client disconnected"
@@ -71,6 +72,7 @@ voice_assistant:
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
           - script.execute: update_leds
+          - script.execute: update_ui
   on_intent_end:
     # Intent processing finished.
     - logger.log: "[VA] Intent ended"
@@ -79,6 +81,7 @@ voice_assistant:
     - logger.log: "[VA] Listening"
     - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
     - script.execute: update_leds
+    - script.execute: update_ui
   on_start:
     # Assist pipeline started.
     - logger.log: "[VA] Started"
@@ -110,6 +113,7 @@ voice_assistant:
     # Reset the voice assistant phase id.
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
     - script.execute: update_leds
+    - script.execute: update_ui
   on_stt_vad_start:
     # Voice activity detection (VAD) started STT processing.
     - logger.log: "[VA] STT VAD started"
@@ -120,6 +124,7 @@ voice_assistant:
     - logger.log: "[VA] STT VAD ended"
     - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
     - script.execute: update_leds
+    - script.execute: update_ui
   on_stt_end:
     # Speech-to-Text finished (text in 'x').
     - logger.log: "[VA] STT ended"
@@ -133,6 +138,7 @@ voice_assistant:
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
           - script.execute: update_leds
+          - script.execute: update_ui
   on_tts_end:
     # Text-to-Speech finished (audio URL in 'x').
     - logger.log: "[VA] TTS ended"
@@ -151,3 +157,4 @@ voice_assistant:
           - logger.log: "[VA] Error"
           - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};
           - script.execute: update_leds
+          - script.execute: update_ui

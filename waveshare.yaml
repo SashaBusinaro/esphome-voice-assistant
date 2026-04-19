@@ -55,7 +55,15 @@ esphome:
             }
 
             ESP_LOGI("es7210_tdm", "TDM config applied successfully!");
+            // Heap diagnostics — helps verify SPIRAM_USE_MALLOC is routing large
+            // allocations (LVGL draw buf 106KB) to PSRAM and freeing internal SRAM for I2S DMA.
+            ESP_LOGI("heap", "Internal free: %u  DMA free: %u  DMA largest: %u  PSRAM free: %u",
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         - script.execute: update_leds
+        - script.execute: update_ui
 
 esp32:
   variant: esp32s3
@@ -69,6 +77,14 @@ esp32:
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"     # Move code to PSRAM, frees internal SRAM
       CONFIG_SPIRAM_RODATA: "y"                 # Move read-only data to PSRAM
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"    # TLS buffers in PSRAM (saves ~40KB internal)
+      CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: "y" # WiFi/LWIP buffers in PSRAM (~100KB freed)
+      # Switch from CAPS_ALLOC to USE_MALLOC so malloc() can use PSRAM.
+      # CAPS_ALLOC (ESPHome default) keeps malloc() internal-only; LVGL's malloc(106KB) draw
+      # buffer then exhausts the internal heap before I2S DMA can allocate its 64KB.
+      # With USE_MALLOC + ALWAYSINTERNAL=16384: allocations >16KB go to PSRAM via malloc(),
+      # task stacks ≤8KB stay internal, heap_caps_malloc(DMA|INTERNAL) is always unaffected.
+      CONFIG_SPIRAM_USE_MALLOC: "y"
+      CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "16384" # malloc() >16KB → PSRAM; ≤16KB → internal
 
 psram:
   mode: octal
@@ -98,6 +114,8 @@ packages:
   va: !include core/va.yaml
   led: !include core/led.yaml
   display: !include core/display.yaml
+  touchscreen: !include core/touchscreen.yaml
+  ui: !include core/ui.yaml
 
 globals:
   - id: voice_assistant_phase

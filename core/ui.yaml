@@ -1,0 +1,160 @@
+globals:
+  - id: g_applied_ui
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
+lvgl:
+  displays:
+    - disp1
+  color_depth: 16
+  buffer_size: 25%
+  log_level: WARN
+
+  pages:
+    - id: main_page
+      bg_color: 0x000000
+      widgets:
+        - line:
+            id: vol_minus_line
+            align: LEFT_MID
+            x: 35
+            points:
+              - 0, 3
+              - 50, 3
+            line_width: 6
+            line_color: 0xFFFFFF
+            line_rounded: true
+        - obj:
+            id: vol_plus_container
+            align: RIGHT_MID
+            x: -10
+            width: 70
+            height: 70
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            widgets:
+              - line:
+                  id: vol_plus_h
+                  points:
+                    - 10, 35
+                    - 60, 35
+                  line_width: 6
+                  line_color: 0xFFFFFF
+                  line_rounded: true
+              - line:
+                  id: vol_plus_v
+                  points:
+                    - 35, 10
+                    - 35, 60
+                  line_width: 6
+                  line_color: 0xFFFFFF
+                  line_rounded: true
+        - obj:
+            id: blob_obj
+            align: CENTER
+            width: 60
+            height: 60
+            radius: 32767
+            bg_color: 0x303030
+            border_width: 0
+            pad_all: 0
+
+script:
+  - id: update_ui
+    then:
+      - lambda: |-
+          // Mirror update_leds priority: init > muted > vol=0 > VA phase
+          int current_phase = id(voice_assistant_phase);
+          bool is_init = id(init_in_progress);
+          bool is_muted = id(microphone_aec).get_mute_state();
+          bool is_vol_zero = id(speaker_media_player).volume <= 0.01f;
+
+          int target_state = 0;
+          if (is_init) {
+            target_state = 100;
+          } else if (is_muted) {
+            target_state = 200;
+          } else if (is_vol_zero) {
+            target_state = 300;
+          } else {
+            target_state = current_phase;
+          }
+
+          if (target_state == id(g_applied_ui)) return;
+          id(g_applied_ui) = target_state;
+
+          lv_obj_t *blob = id(blob_obj);
+
+          // Stop any running animation on the blob
+          lv_anim_del(blob, nullptr);
+
+          lv_color_t color;
+          int32_t start_size, end_size;
+          uint32_t anim_ms = 0;
+
+          switch (target_state) {
+            case 100: // Init: dim blue slow pulse
+              color = lv_color_hex(0x0044CC);
+              start_size = 60; end_size = 100; anim_ms = 1500;
+              break;
+            case 10:  // not_ready: dark red static
+              color = lv_color_hex(0x880000);
+              start_size = end_size = 60;
+              break;
+            case 1:   // idle: dim gray slow breathe
+              color = lv_color_hex(0x303030);
+              start_size = 50; end_size = 70; anim_ms = 3000;
+              break;
+            case 2:   // waiting/listening: blue expanded pulse
+            case 3:
+              color = lv_color_hex(0x0088FF);
+              start_size = 120; end_size = 200; anim_ms = 1000;
+              break;
+            case 4:   // thinking: dark blue fast pulse
+              color = lv_color_hex(0x0055CC);
+              start_size = 100; end_size = 160; anim_ms = 400;
+              break;
+            case 5:   // replying: white large pulse
+              color = lv_color_hex(0xFFFFFF);
+              start_size = 150; end_size = 220; anim_ms = 700;
+              break;
+            case 11:  // error: red fast flash
+              color = lv_color_hex(0xFF0000);
+              start_size = 80; end_size = 130; anim_ms = 300;
+              break;
+            case 200: // muted: orange static
+              color = lv_color_hex(0xFF4400);
+              start_size = end_size = 80;
+              break;
+            case 300: // vol=0: yellow static
+              color = lv_color_hex(0xFFCC00);
+              start_size = end_size = 80;
+              break;
+            default:
+              color = lv_color_hex(0x101010);
+              start_size = end_size = 60;
+              break;
+          }
+
+          // Apply color and initial size
+          lv_obj_set_style_bg_color(blob, color, LV_PART_MAIN);
+          lv_obj_set_size(blob, start_size, start_size);
+          lv_obj_align(blob, LV_ALIGN_CENTER, 0, 0);
+
+          // Start symmetric pulse animation if animated state
+          if (anim_ms > 0 && start_size != end_size) {
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, blob);
+            lv_anim_set_exec_cb(&a, [](void *obj, int32_t v) {
+              lv_obj_set_size((lv_obj_t *)obj, v, v);
+              lv_obj_align((lv_obj_t *)obj, LV_ALIGN_CENTER, 0, 0);
+            });
+            lv_anim_set_values(&a, start_size, end_size);
+            lv_anim_set_time(&a, anim_ms);
+            lv_anim_set_playback_time(&a, anim_ms);
+            lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+            lv_anim_start(&a);
+          }
