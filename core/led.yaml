@@ -104,7 +104,7 @@ script:
               led->turn_on().set_rgb(0.0f, 0.0f, 1.0f).set_brightness(${led_brightness_low}).set_effect("Slow Pulse").perform();
               break;
             case 200: // Muted
-              led->turn_on().set_rgb(1.0f, 0.2f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();
+              led->turn_on().set_rgb(1.0f, 0.55f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();
               break;
             case 300: // Volume at zero
               led->turn_on().set_rgb(1.0f, 0.8f, 0.0f).set_brightness(${led_brightness_low}).set_effect("None").perform();

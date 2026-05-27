@@ -168,7 +168,7 @@ script:
               do_pulse = true; pulse_ms = 300;
               break;
             case 200: // Muted: orange, full ring, static
-              color = lv_color_hex(0xFF4400);
+              color = lv_color_hex(0xFF8C00);
               arc_end = 360;
               break;
             case 300: // Vol=0: yellow, full ring, static
