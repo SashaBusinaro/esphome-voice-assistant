@@ -45,8 +45,11 @@ esp_afe:
   vad_enabled: false      # VA already runs its own VAD
   agc_enabled: true       # WebRTC AGC (used when SE is toggled off)
   task_priority: 19
-  # Place AFE staging buffers in PSRAM to keep internal RAM free for TLS / DMA.
-  feed_buf_in_psram: true
+  # Staging buffer placement. With WiFi up and 77 KB internal free, the ~3 KB
+  # feed scratch is cheap to keep internal: saves ~41 us/frame on Core 0 (the
+  # buffer is written and re-read every audio frame). The bigger rings stay in
+  # PSRAM where the bus penalty is amortised over fewer accesses.
+  feed_buf_in_psram: false
   feed_ring_in_psram: true
   fetch_ring_in_psram: true
 
@@ -94,7 +97,7 @@ speaker:
         buffer_duration: 100ms
       - id: va_speaker
         timeout: 10s
-        buffer_duration: 100ms
+        buffer_duration: 50ms
 
 switch:
   - platform: gpio
