@@ -1,6 +1,6 @@
 external_components:
-  - source: github://n-IA-hane/esphome-intercom@v3.1.0
-    components: [i2s_audio_duplex, esp_aec]
+  - source: github://n-IA-hane/esphome-intercom@v2026.5.0
+    components: [audio_processor, i2s_audio_duplex, esp_afe]
     refresh: 0s
 
 i2c:
@@ -10,7 +10,10 @@ i2c:
   frequency: 100kHz # Initialization stability
   scan: false
 
-# Speaker Codec
+# 16 kHz I2S bus everywhere: AFE operates natively at 16 kHz, no FIR decimation,
+# no speaker resamplers. HA's ffmpeg_proxy resamples media on its side before
+# streaming to the device (matches the original esp_aec configuration that
+# worked reliably on this board).
 audio_dac:
   - platform: es8311
     id: es8311_dac
@@ -18,7 +21,8 @@ audio_dac:
     address: 0x18
     bits_per_sample: 16bit
     sample_rate: 16000
-    mic_gain: 24db
+    use_mclk: true
+    mic_gain: 24DB
 
 audio_adc:
   - platform: es7210
@@ -27,13 +31,24 @@ audio_adc:
     address: 0x40
     bits_per_sample: 16bit
     sample_rate: 16000
-    mic_gain: 24db
+    mic_gain: 24dB
 
-esp_aec:
-  id: aec_processor
-  sample_rate: 16000   # AEC always operates on the 16kHz decimated stream
-  filter_length: 4     # 64ms tail (4 for integrated codec, 8 for separate mic+speaker)
-  mode: sr_low_cost    # Linear-only AEC, preserves spectral features for Wake Word
+# Full Audio Front-End: AEC + Speech Enhancement (dual-mic) + NS + AGC
+esp_afe:
+  id: afe_processor
+  type: sr                # SR linear AEC, MWW compatible (10/10 detection)
+  mode: low_cost
+  mic_num: 2              # Dual-mic Speech Enhancement
+  aec_filter_length: 4    # 64 ms tail
+  se_enabled: true        # Spatial source separation (replaces NS+AGC while active)
+  ns_enabled: true        # WebRTC NS (used when SE is toggled off)
+  vad_enabled: false      # VA already runs its own VAD
+  agc_enabled: true       # WebRTC AGC (used when SE is toggled off)
+  task_priority: 19
+  # Place AFE staging buffers in PSRAM to keep internal RAM free for TLS / DMA.
+  feed_buf_in_psram: true
+  feed_ring_in_psram: true
+  fetch_ring_in_psram: true
 
 i2s_audio_duplex:
   id: i2s_duplex
@@ -42,33 +57,38 @@ i2s_audio_duplex:
   i2s_mclk_pin: GPIO42
   i2s_din_pin: GPIO10
   i2s_dout_pin: GPIO8
-  sample_rate: 16000
-  aec_id: aec_processor
-  buffers_in_psram: true # Required for sr_low_cost memory usage
+  sample_rate: 16000          # I2S bus rate; no FIR decimation needed
+  processor_id: afe_processor
   use_tdm_reference: true
   tdm_total_slots: 4
-  tdm_mic_slot: 0
-  tdm_ref_slot: 1
+  tdm_mic_slots: [0, 2]       # MIC1 + MIC3 = dual voice mics
+  tdm_ref_slot: 1             # MIC2 = DAC analog feedback @ 30 dB
+  buffers_in_psram: true
 
-# Post AEC processing
+# Microphone (post-AFE, 16 kHz mono)
 microphone:
   - platform: i2s_audio_duplex
     id: microphone_aec
     i2s_audio_duplex_id: i2s_duplex
 
+# Speaker pipeline at 16 kHz: mixer combines media + VA TTS directly, no
+# resamplers needed since HA sends both streams at 16 kHz (see core/va.yaml).
 speaker:
   - platform: i2s_audio_duplex
-    id: external_speaker
+    id: hw_speaker
     i2s_audio_duplex_id: i2s_duplex
     sample_rate: 16000
 
   - platform: mixer
     id: audio_mixer
-    output_speaker: external_speaker
-    # # num_channels: 1
-    # queue_mode: true
-    # task_stack_in_psram: true
+    output_speaker: hw_speaker
+    num_channels: 1
+    task_stack_in_psram: true
     source_speakers:
+      # Media keeps 100 ms — music streams over the network and benefits from a
+      # bit of jitter absorption. VA TTS arrives in a burst after HA finishes
+      # generating it, so a smaller buffer reduces the gap between the first
+      # received chunk and the first sample reaching the DAC.
       - id: media_speaker
         timeout: 10s
         buffer_duration: 100ms
@@ -83,12 +103,28 @@ switch:
     restore_mode: ALWAYS_ON
     internal: true
 
-  - platform: i2s_audio_duplex
-    i2s_audio_duplex_id: i2s_duplex
+  # AFE runtime controls (replace esp_aec single AEC switch)
+  - platform: esp_afe
+    esp_afe_id: afe_processor
     aec:
       id: aec_switch
       name: Echo Cancellation
       icon: mdi:ear-hearing
+      restore_mode: RESTORE_DEFAULT_ON
+    se:
+      id: se_switch
+      name: Speech Enhancement
+      icon: mdi:microphone-variant
+      restore_mode: RESTORE_DEFAULT_ON
+    ns:
+      id: ns_switch
+      name: Noise Suppression
+      icon: mdi:volume-off
+      restore_mode: RESTORE_DEFAULT_ON
+    agc:
+      id: agc_switch
+      name: Auto Gain Control
+      icon: mdi:tune-vertical
       restore_mode: RESTORE_DEFAULT_ON
 
   - platform: template
@@ -113,8 +149,20 @@ number:
   - platform: i2s_audio_duplex
     i2s_audio_duplex_id: i2s_duplex
     mic_gain:
-      name: "Software Mic Gain"
+      id: mic_gain
+      name: "Mic Gain (post-AFE)"
     speaker_volume:
-      name: "Speaker Volume"
-    mic_gain_pre_aec:
-      name: "Mic Gain Pre AEC"
+      id: master_volume
+      name: "Master Volume"
+      speaker_id: hw_speaker
+
+# AFE diagnostic sensors
+sensor:
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    input_volume:
+      name: "AFE Input Volume"
+      update_interval: 250ms
+    output_rms:
+      name: "AFE Output RMS"
+      update_interval: 250ms

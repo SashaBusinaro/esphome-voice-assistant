@@ -72,12 +72,16 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      # esp-sr (AFE) requires 64KB data cache with 64B line on S3.
       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
       CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
-      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"     # Move code to PSRAM, frees internal SRAM
-      CONFIG_SPIRAM_RODATA: "y"                 # Move read-only data to PSRAM
-      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"    # TLS buffers in PSRAM (saves ~40KB internal)
-      CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: "y" # WiFi/LWIP buffers in PSRAM (~100KB freed)
+      # Move code/rodata to PSRAM XIP, frees ~30KB internal DRAM.
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_SPIRAM_RODATA: "y"
+      # Keep TLS allocations out of internal RAM.
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+      CONFIG_MBEDTLS_DYNAMIC_BUFFER: "y"
+      CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN: "16384"
       # Switch from CAPS_ALLOC to USE_MALLOC so malloc() can use PSRAM.
       # CAPS_ALLOC (ESPHome default) keeps malloc() internal-only; LVGL's malloc(106KB) draw
       # buffer then exhausts the internal heap before I2S DMA can allocate its 64KB.
@@ -85,6 +89,12 @@ esp32:
       # task stacks ≤8KB stay internal, heap_caps_malloc(DMA|INTERNAL) is always unaffected.
       CONFIG_SPIRAM_USE_MALLOC: "y"
       CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "16384" # malloc() >16KB → PSRAM; ≤16KB → internal
+      # NOTE: CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP intentionally removed.
+      # With the esp_afe pipeline the audio task generates heavy PSRAM bus
+      # traffic on Core 0; sharing that bus with WiFi/LWIP buffers caused
+      # esp_wifi_init() to fail (scan timeout → ESP_ERR_WIFI_NOT_INIT).
+      # Keeping WiFi/LWIP in internal RAM matches the library's AFE reference
+      # configuration (yamls/full-experience/single-bus/afe/*.yaml).
 
 psram:
   mode: octal
@@ -131,7 +141,10 @@ button:
   - platform: restart
     name: "Reboot"
 
-number: 
+number:
+  # Hardware PGA on the ES7210 ADC. Pre-AFE gain stage; useful when the
+  # microphone capsules are quiet. Post-AFE trim is exposed by the
+  # i2s_audio_duplex "Mic Gain (post-AFE)" entity in core/audio.yaml.
   - platform: template
     id: mic_gain_db
     name: "Mic Gain (ES7210 dB)"
@@ -139,59 +152,10 @@ number:
     min_value: 0
     max_value: 36
     step: 3
-    # restore_value: true
     initial_value: 24
     set_action:
       - lambda: |-
           id(es7210_adc).set_mic_gain(x);   // adjust PGA on the fly
       - logger.log:
           format: "[MIC] Set ES7210 gain to %.0f dB"
-          args: ["x"]
-
-  - platform: template
-    id: va_mic_gain_factor
-    name: "VA MIC Gain Factor"
-    entity_category: config
-    min_value: 1
-    max_value: 64
-    step: 1
-    # restore_value: true
-    initial_value: 64
-    set_action:
-      - lambda: |-
-          id(va_mic).set_gain_factor(x);
-      - logger.log:
-          format: "[VA MIC] Set gain factor to %.0f"
-          args: ["x"]
-
-  - platform: template
-    id: mww_mic_gain_factor
-    name: "MWW MIC Gain Factor"
-    entity_category: config
-    min_value: 1
-    max_value: 64
-    step: 1
-    # restore_value: true
-    initial_value: 64
-    set_action:
-      - lambda: |-
-          id(mww_mic).set_gain_factor(x);
-      - logger.log:
-          format: "[MWW MIC] Set gain factor to %.0f"
-          args: ["x"]
-
-  - platform: template
-    id: noise_suppression
-    name: "VA Noise Suppression"
-    entity_category: config
-    min_value: 0
-    max_value: 4
-    step: 1
-    # restore_value: true
-    initial_value: 0
-    set_action:
-      - lambda: |-
-          id(va).set_noise_suppression_level(x);
-      - logger.log:
-          format: "[VA] Set suppression to %.0f"
           args: ["x"]

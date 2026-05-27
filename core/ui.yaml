@@ -8,7 +8,11 @@ lvgl:
   displays:
     - disp1
   color_depth: 16
-  buffer_size: 25%
+  # 25% = ~108 KB DMA-capable internal RAM (LVGL flush callback needs DMA-able
+  # memory). Combined with AFE that fragments the internal heap below the ~26
+  # KB contiguous DMA block esp_wifi_init() needs for its RX pool. 10% = ~43 KB
+  # gives WiFi room to come up while still being plenty for a status-UI redraw.
+  buffer_size: 10%
   log_level: WARN
 
   pages:

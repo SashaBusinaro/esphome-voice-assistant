@@ -2,8 +2,6 @@ media_player:
   - platform: speaker
     id: speaker_media_player
     name: "Media Player"
-    # task_stack_in_psram: true
-    codec_support_enabled: NEEDED
     volume_increment: 0.05
     volume_min: 0.55
     volume_max: 0.85
@@ -19,13 +17,12 @@ media_player:
       - script.execute: update_leds
       - script.execute: update_ui
 
+# Post-AFE mic is already cleaned (AEC + SE + NS + AGC).
+# No channel/gain filter wrapper needed; tune via the "Mic Gain (post-AFE)"
+# number from i2s_audio_duplex if extra trim is required.
 micro_wake_word:
   id: mww
-  microphone:
-    id: mww_mic
-    microphone: microphone_aec
-    channels: 0
-    gain_factor: 64
+  microphone: microphone_aec
   stop_after_detection: false
   models:
     - model: github://esphome/micro-wake-word-models/models/alexa.json@main
@@ -37,13 +34,10 @@ micro_wake_word:
 
 voice_assistant:
   id: va
-  microphone:
-    id: va_mic
-    microphone: microphone_aec
-    channels: 0
-    gain_factor: 64
+  microphone: microphone_aec
   media_player: speaker_media_player
   micro_wake_word: mww
+  # AFE already runs NS + AGC; keep VA-side processing off to avoid double-filtering.
   noise_suppression_level: 0
   auto_gain: 0 dBFS
   volume_multiplier: 1.0
@@ -89,7 +83,9 @@ voice_assistant:
   on_start:
     # Assist pipeline started.
     - logger.log: "[VA] Started"
-    # Duck media audio when the voice assistant starts
+    # Duck media audio when the voice assistant starts.
+    # Ducking targets a mixer source; media_speaker is now a resampler that
+    # feeds media_speaker_mix on the 48 kHz mixer.
     - mixer_speaker.apply_ducking:
         id: media_speaker
         decibel_reduction: 30

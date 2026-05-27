@@ -9,8 +9,8 @@ easily install your project onto their device.
 ## Requirements
 
 This project works with:
-- ESPHome 2026.4
-- [n-IA-hane/esphome-intercom](https://github.com/n-IA-hane/esphome-intercom) v3.1.0
+- ESPHome 2026.5
+- [n-IA-hane/esphome-intercom](https://github.com/n-IA-hane/esphome-intercom) v2026.5.0 with the `esp_afe` full Audio Front-End pipeline (AEC + Speech Enhancement + NS + AGC)
 
 ## Instructions
 
