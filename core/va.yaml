@@ -7,11 +7,11 @@ media_player:
     volume_max: 0.85
     media_pipeline:
       speaker: media_speaker
-      sample_rate: 16000
+      sample_rate: 48000
       format: FLAC
     announcement_pipeline:
       speaker: va_speaker
-      sample_rate: 16000
+      sample_rate: 48000
       format: FLAC
     on_state:
       - script.execute: update_leds
@@ -45,7 +45,7 @@ voice_assistant:
   # AFE already runs NS + AGC; keep VA-side processing off to avoid double-filtering.
   noise_suppression_level: 0
   auto_gain: 0 dBFS
-  volume_multiplier: 1.0
+  volume_multiplier: 1.0 # Changing has no effect
   
   on_client_connected:
     # Home Assistant connected and waiting for commands.
@@ -92,7 +92,7 @@ voice_assistant:
     # Ducking targets a mixer source; media_speaker is now a resampler that
     # feeds media_speaker_mix on the 48 kHz mixer.
     - mixer_speaker.apply_ducking:
-        id: media_speaker
+        id: media_speaker_mix
         decibel_reduction: 30
         duration: 0.0s
   on_wake_word_detected:
@@ -106,7 +106,7 @@ voice_assistant:
           voice_assistant.is_running:
     # Stop ducking audio.
     - mixer_speaker.apply_ducking:
-        id: media_speaker
+        id: media_speaker_mix
         decibel_reduction: 0
         duration: 0.5s
     # If the end happened because of an error, let the error phase on for a second

@@ -1,7 +1,10 @@
-pca9554:
-  - id: 'io_expander'
-    address: 0x20
-    i2c_id: i2c_bus
+# DISABLED: orphan IO expander. The LED ring is on GPIO16 (direct) and the
+# speaker amp on GPIO46 (direct); nothing references this io_expander. Kept
+# commented in case a future button/expander wiring needs it.
+# pca9554:
+#   - id: 'io_expander'
+#     address: 0x20
+#     i2c_id: i2c_bus
 
 light:
   - platform: esp32_rmt_led_strip

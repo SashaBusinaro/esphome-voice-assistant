@@ -22,12 +22,11 @@ display:
       width: 466
       offset_width: 6  # UE015WV-RB24-A021A has 6-pixel horizontal offset
     color_depth: 16
-    # Partial-frame buffer: full-frame (100%) at 466x466x16bpp consumes ~434 KB
-    # and drags ~75 KB of DMA-capable internal RAM with it for the QSPI staging
-    # path. That left esp_wifi_init() with a 20 KB largest contiguous DMA block
-    # (needs ~40-60 KB) once AFE was added. 25% = ~108 KB PSRAM-resident frame
-    # with proportionally smaller internal DMA scratch.
-    buffer_size: 25%
+    # No buffer_size here on purpose: this display is driven by LVGL
+    # (lvgl.displays: [disp1]), so the mipi_spi driver allocates NO buffer of
+    # its own — LVGL owns the single draw buffer. The effective frame buffer is
+    # lvgl.buffer_size in core/ui.yaml (10% = ~43 KB DMA-capable internal). A
+    # buffer_size here would be inert; the RAM/WiFi-DMA tradeoff lives in ui.yaml.
 
     # Display initialization sequence
     init_sequence:

@@ -70,6 +70,8 @@ esp32:
   flash_size: 16MB
   framework:
     type: esp-idf
+    advanced:
+      compiler_optimization: PERF
     sdkconfig_options:
       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
       # esp-sr (AFE) requires 64KB data cache with 64B line on S3.
@@ -141,21 +143,24 @@ button:
   - platform: restart
     name: "Reboot"
 
-number:
-  # Hardware PGA on the ES7210 ADC. Pre-AFE gain stage; useful when the
-  # microphone capsules are quiet. Post-AFE trim is exposed by the
-  # i2s_audio_duplex "Mic Gain (post-AFE)" entity in core/audio.yaml.
-  - platform: template
-    id: mic_gain_db
-    name: "Mic Gain (ES7210 dB)"
-    entity_category: config
-    min_value: 0
-    max_value: 36
-    step: 3
-    initial_value: 24
-    set_action:
-      - lambda: |-
-          id(es7210_adc).set_mic_gain(x);   // adjust PGA on the fly
-      - logger.log:
-          format: "[MIC] Set ES7210 gain to %.0f dB"
-          args: ["x"]
+# DISABLED: this runtime number called es7210_adc.set_mic_gain(x), which the
+# ESPHome ES7210 driver applies to all enabled channels — including the AEC
+# reference slot (MIC2/0x44 @ 30 dB set in on_boot). Adjusting it at runtime
+# would clobber the AEC reference gain and degrade echo cancellation. The clean
+# overall-level lever is the per-MIC PGA set once in on_boot (ADR-012 stage 1);
+# post-AFE trim stays on the "Mic Gain (post-AFE)" number in core/audio.yaml.
+# number:
+#   - platform: template
+#     id: mic_gain_db
+#     name: "Mic Gain (ES7210 dB)"
+#     entity_category: config
+#     min_value: 0
+#     max_value: 36
+#     step: 3
+#     initial_value: 24
+#     set_action:
+#       - lambda: |-
+#           id(es7210_adc).set_mic_gain(x);   // adjust PGA on the fly
+#       - logger.log:
+#           format: "[MIC] Set ES7210 gain to %.0f dB"
+#           args: ["x"]

@@ -10,19 +10,20 @@ i2c:
   frequency: 100kHz # Initialization stability
   scan: false
 
-# 16 kHz I2S bus everywhere: AFE operates natively at 16 kHz, no FIR decimation,
-# no speaker resamplers. HA's ffmpeg_proxy resamples media on its side before
-# streaming to the device (matches the original esp_aec configuration that
-# worked reliably on this board).
+# 48 kHz I2S bus + FIR decimation x3 -> 16 kHz. The codec runs at its native
+# 48 kHz (lower noise floor / better ADC-DAC per the i2s_audio_duplex README);
+# mic / AEC / MWW / VA get 16 kHz via output_sample_rate. The speaker path runs
+# at 48 kHz through resampler speakers into the mixer (see the speaker block
+# below and core/va.yaml). Mirrors the official Waveshare full-AFE example.
 audio_dac:
   - platform: es8311
     id: es8311_dac
     i2c_id: i2c_bus
     address: 0x18
     bits_per_sample: 16bit
-    sample_rate: 16000
+    sample_rate: 48000
     use_mclk: true
-    mic_gain: 24DB
+    mic_gain: 24dB
 
 audio_adc:
   - platform: es7210
@@ -30,20 +31,21 @@ audio_adc:
     i2c_id: i2c_bus
     address: 0x40
     bits_per_sample: 16bit
-    sample_rate: 16000
+    sample_rate: 48000
     mic_gain: 24dB
 
-# Full Audio Front-End: AEC + Speech Enhancement (dual-mic) + NS + AGC
+# Full Audio Front-End: AEC + NS + AGC (single-mic MR pipeline).
+# SE disabled after A/B test: NS+AGC gives better wake-word + STT on this board.
 esp_afe:
   id: afe_processor
   type: sr                # SR linear AEC, MWW compatible (10/10 detection)
   mode: low_cost
-  mic_num: 2              # Dual-mic Speech Enhancement
+  mic_num: 2              # ES7210 TDM provides 2 voice slots; MR collapses to 1 AFE channel
   aec_filter_length: 4    # 64 ms tail
-  se_enabled: true        # Spatial source separation (replaces NS+AGC while active)
-  ns_enabled: true        # WebRTC NS (used when SE is toggled off)
+  se_enabled: false       # off -> AEC -> NS -> AGC (no spatial separation, AGC active)
+  ns_enabled: true        # WebRTC NS active
   vad_enabled: false      # VA already runs its own VAD
-  agc_enabled: true       # WebRTC AGC (used when SE is toggled off)
+  agc_enabled: true       # WebRTC AGC active: normalizes level + caps post-AFE clipping
   task_priority: 19
   # Staging buffer placement. With WiFi up and 77 KB internal free, the ~3 KB
   # feed scratch is cheap to keep internal: saves ~41 us/frame on Core 0 (the
@@ -60,7 +62,8 @@ i2s_audio_duplex:
   i2s_mclk_pin: GPIO42
   i2s_din_pin: GPIO10
   i2s_dout_pin: GPIO8
-  sample_rate: 16000          # I2S bus rate; no FIR decimation needed
+  sample_rate: 48000          # I2S bus rate (codec native, cleaner ADC/DAC)
+  output_sample_rate: 16000   # FIR decimate x3 -> 16 kHz for AEC/MWW/VA
   processor_id: afe_processor
   use_tdm_reference: true
   tdm_total_slots: 4
@@ -74,13 +77,16 @@ microphone:
     id: microphone_aec
     i2s_audio_duplex_id: i2s_duplex
 
-# Speaker pipeline at 16 kHz: mixer combines media + VA TTS directly, no
-# resamplers needed since HA sends both streams at 16 kHz (see core/va.yaml).
+# Speaker pipeline at 48 kHz. The ESPHome mixer does NOT resample, so every
+# source must already be at 48 kHz. The media_player and any local .flac (own
+# native rate) feed resampler speakers (media_speaker / va_speaker) that
+# upconvert into the 48 kHz mixer sources (media_speaker_mix / va_speaker_mix).
+# Architecture from packages/audio/full_mono_mixer_48k.yaml.
 speaker:
   - platform: i2s_audio_duplex
     id: hw_speaker
     i2s_audio_duplex_id: i2s_duplex
-    sample_rate: 16000
+    sample_rate: 48000
 
   - platform: mixer
     id: audio_mixer
@@ -92,12 +98,23 @@ speaker:
       # bit of jitter absorption. VA TTS arrives in a burst after HA finishes
       # generating it, so a smaller buffer reduces the gap between the first
       # received chunk and the first sample reaching the DAC.
-      - id: media_speaker
+      - id: media_speaker_mix
         timeout: 10s
         buffer_duration: 100ms
-      - id: va_speaker
+      - id: va_speaker_mix
         timeout: 10s
         buffer_duration: 50ms
+
+  # Resamplers: media_player output / local files (any rate) -> 48 kHz mixer.
+  - platform: resampler
+    id: media_speaker
+    output_speaker: media_speaker_mix
+    task_stack_in_psram: true
+
+  - platform: resampler
+    id: va_speaker
+    output_speaker: va_speaker_mix
+    task_stack_in_psram: true
 
 switch:
   - platform: gpio
@@ -118,7 +135,7 @@ switch:
       id: se_switch
       name: Speech Enhancement
       icon: mdi:microphone-variant
-      restore_mode: RESTORE_DEFAULT_ON
+      restore_mode: RESTORE_DEFAULT_OFF
     ns:
       id: ns_switch
       name: Noise Suppression
