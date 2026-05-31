@@ -1,91 +1,116 @@
 external_components:
-  - source: github://n-IA-hane/esphome-intercom@v2026.5.0
-    components: [audio_processor, i2s_audio_duplex, esp_afe]
+  - source: github://n-IA-hane/esphome-intercom@main
+    components: [audio_processor, esp_audio_stack, esp_afe]
     refresh: 0s
 
 i2c:
   id: i2c_bus
   scl: GPIO14
   sda: GPIO15
-  frequency: 100kHz # Initialization stability
+  frequency: 100kHz
   scan: false
 
-# 48 kHz I2S bus + FIR decimation x3 -> 16 kHz. The codec runs at its native
-# 48 kHz (lower noise floor / better ADC-DAC per the i2s_audio_duplex README);
-# mic / AEC / MWW / VA get 16 kHz via output_sample_rate. The speaker path runs
-# at 48 kHz through resampler speakers into the mixer (see the speaker block
-# below and core/va.yaml). Mirrors the official Waveshare full-AFE example.
-audio_dac:
-  - platform: es8311
-    id: es8311_dac
-    i2c_id: i2c_bus
-    address: 0x18
-    bits_per_sample: 16bit
-    sample_rate: 48000
-    use_mclk: true
-    mic_gain: 24dB
-
-audio_adc:
-  - platform: es7210
-    id: es7210_adc
-    i2c_id: i2c_bus
-    address: 0x40
-    bits_per_sample: 16bit
-    sample_rate: 48000
-    mic_gain: 24dB
-
-# Full Audio Front-End: AEC + NS + AGC (single-mic MR pipeline).
-# SE disabled after A/B test: NS+AGC gives better wake-word + STT on this board.
+# ---------------------------------------------------------------------------
+# AFE pipeline — swap 3 lines to switch between dual-mic and single-mic:
+#
+#   DUAL-MIC (Speech Enhancement / BSS):
+#     mic_num: 2  |  se_enabled: true  |  agc_enabled: false
+#     esp_audio_stack: tdm_mic_slots: [0, 2]
+#
+#   SINGLE-MIC (NS + AGC, no spatial separation):
+#     mic_num: 1  |  se_enabled: false  |  agc_enabled: true
+#     esp_audio_stack: tdm_mic_slot: 0     <- singular key, replaces tdm_mic_slots
+#     add agc switch below if desired
+# ---------------------------------------------------------------------------
 esp_afe:
   id: afe_processor
-  type: sr                # SR linear AEC, MWW compatible (10/10 detection)
+  type: sr              # linear AEC; best MWW detection (10/10 vs 2/10 with vc)
   mode: low_cost
-  mic_num: 2              # ES7210 TDM provides 2 voice slots; MR collapses to 1 AFE channel
-  aec_filter_length: 4    # 64 ms tail
-  se_enabled: false       # off -> AEC -> NS -> AGC (no spatial separation, AGC active)
-  ns_enabled: true        # WebRTC NS active
-  vad_enabled: false      # VA already runs its own VAD
-  agc_enabled: true       # WebRTC AGC active: normalizes level + caps post-AFE clipping
-  task_priority: 19
-  # Staging buffer placement. With WiFi up and 77 KB internal free, the ~3 KB
-  # feed scratch is cheap to keep internal: saves ~41 us/frame on Core 0 (the
-  # buffer is written and re-read every audio frame). The bigger rings stay in
-  # PSRAM where the bus penalty is amortised over fewer accesses.
-  feed_buf_in_psram: false
+  mic_num: 1            # DUAL-MIC: change to 1 for single-mic test
+  aec_filter_length: 4  # 64 ms tail, sufficient for integrated codec
+  aec_nlp_level: normal # normal / aggressive / very_aggressive
+  se_enabled: false      # DUAL-MIC: set false for single-mic test (structural, needs reflash)
+  ns_enabled: true      # active in single-mic; esp-sr may bypass when SE is active
+  vad_enabled: false    # VA pipeline owns its own VAD
+  agc_enabled: true    # DUAL-MIC: set true for single-mic test
+  aec_off_output: raw_1 # AEC-off path: use BSS non-processed output on dual-mic SE builds
+  memory_alloc_mode: more_psram
+  task_core: 1
+  task_priority: 5
+  ringbuf_size: 8
+  feed_task_core: 0
+  feed_task_priority: 5
+  feed_task_stack_size: 3072
+  fetch_task_core: 1
+  fetch_task_priority: 5
+  fetch_task_stack_size: 3072
+  feed_buf_in_psram: true
   feed_ring_in_psram: true
   fetch_ring_in_psram: true
 
-i2s_audio_duplex:
-  id: i2s_duplex
+esp_audio_stack:
+  id: audio_stack
+  audio_task_stack_in_psram: true
+  buffers_in_psram: true
+  master_volume_min_db: -30.0
+  task_core: 0
+  task_priority: 19
+  task_stack_size: 8192
+  # dma_frame_num: 240 trims TDM DMA by ~23 KB; keep for headroom when display is re-enabled
+  dma_frame_num: 240
+  gmf_io:
+    reader:
+      io_size: 0
+      buffer_size: 0
+      task_stack_size: 0
+      speed_monitor: false
+    writer:
+      io_size: 0
+      buffer_size: 0
+      task_stack_size: 0
+      speed_monitor: false
+  # Custom pin mapping for this board (differs from the library's stock WS3 example)
   i2s_lrclk_pin: GPIO45
   i2s_bclk_pin: GPIO9
   i2s_mclk_pin: GPIO42
   i2s_din_pin: GPIO10
   i2s_dout_pin: GPIO8
-  sample_rate: 48000          # I2S bus rate (codec native, cleaner ADC/DAC)
-  output_sample_rate: 16000   # FIR decimate x3 -> 16 kHz for AEC/MWW/VA
+  sample_rate: 48000
+  output_sample_rate: 16000
   processor_id: afe_processor
+  audio_effects:
+    rate_cvt_complexity: 3
+    rate_cvt_perf_type: speed
+  codec:
+    i2c_id: i2c_bus
+    input:
+      type: es7210
+      address: 0x40
+      mic_selected: 0x0F  # all 4 channels enabled (MIC1-4)
+      gain_db: 24.0        # uniform 24 dB on all channels including AEC ref slot
+    output:
+      type: es8311
+      address: 0x18
+      use_mclk: true
+      no_dac_ref: true
   use_tdm_reference: true
   tdm_total_slots: 4
-  tdm_mic_slots: [0, 2]       # MIC1 + MIC3 = dual voice mics
-  tdm_ref_slot: 1             # MIC2 = DAC analog feedback @ 30 dB
-  buffers_in_psram: true
+  tdm_mic_slots: 0    # DUAL-MIC: right mic (slot 0) + left mic (slot 2)
+                            # SINGLE-MIC: replace with  tdm_mic_slot: 0  (singular key)
+  tdm_ref_slot: 1           # slot 1 = DAC analog feedback for AEC (empirically verified)
 
-# Microphone (post-AFE, 16 kHz mono)
 microphone:
-  - platform: i2s_audio_duplex
+  - platform: esp_audio_stack
     id: microphone_aec
-    i2s_audio_duplex_id: i2s_duplex
+    esp_audio_stack_id: audio_stack
 
 # Speaker pipeline at 48 kHz. The ESPHome mixer does NOT resample, so every
-# source must already be at 48 kHz. The media_player and any local .flac (own
-# native rate) feed resampler speakers (media_speaker / va_speaker) that
-# upconvert into the 48 kHz mixer sources (media_speaker_mix / va_speaker_mix).
-# Architecture from packages/audio/full_mono_mixer_48k.yaml.
+# source must already be at 48 kHz. Resampler speakers upconvert into the
+# 48 kHz mixer sources.
 speaker:
-  - platform: i2s_audio_duplex
+  - platform: esp_audio_stack
     id: hw_speaker
-    i2s_audio_duplex_id: i2s_duplex
+    esp_audio_stack_id: audio_stack
     sample_rate: 48000
 
   - platform: mixer
@@ -94,10 +119,6 @@ speaker:
     num_channels: 1
     task_stack_in_psram: true
     source_speakers:
-      # Media keeps 100 ms — music streams over the network and benefits from a
-      # bit of jitter absorption. VA TTS arrives in a burst after HA finishes
-      # generating it, so a smaller buffer reduces the gap between the first
-      # received chunk and the first sample reaching the DAC.
       - id: media_speaker_mix
         timeout: 10s
         buffer_duration: 100ms
@@ -105,7 +126,6 @@ speaker:
         timeout: 10s
         buffer_duration: 50ms
 
-  # Resamplers: media_player output / local files (any rate) -> 48 kHz mixer.
   - platform: resampler
     id: media_speaker
     output_speaker: media_speaker_mix
@@ -123,7 +143,6 @@ switch:
     restore_mode: ALWAYS_ON
     internal: true
 
-  # AFE runtime controls (replace esp_aec single AEC switch)
   - platform: esp_afe
     esp_afe_id: afe_processor
     aec:
@@ -131,16 +150,12 @@ switch:
       name: Echo Cancellation
       icon: mdi:ear-hearing
       restore_mode: RESTORE_DEFAULT_ON
-    se:
-      id: se_switch
-      name: Speech Enhancement
-      icon: mdi:microphone-variant
-      restore_mode: RESTORE_DEFAULT_OFF
     ns:
       id: ns_switch
       name: Noise Suppression
       icon: mdi:volume-off
       restore_mode: RESTORE_DEFAULT_ON
+    # For single-mic test add agc switch here (requires agc_enabled: true above):
     agc:
       id: agc_switch
       name: Auto Gain Control
@@ -159,24 +174,23 @@ switch:
     turn_on_action:
       - microphone.mute: microphone_aec
       - script.execute: update_leds
-      - script.execute: update_ui
+      # - script.execute: update_ui  # uncomment when ui.yaml is re-enabled
     turn_off_action:
       - microphone.unmute: microphone_aec
       - script.execute: update_leds
-      - script.execute: update_ui
+      # - script.execute: update_ui  # uncomment when ui.yaml is re-enabled
 
 number:
-  - platform: i2s_audio_duplex
-    i2s_audio_duplex_id: i2s_duplex
-    mic_gain:
-      id: mic_gain
-      name: "Mic Gain (post-AFE)"
-    speaker_volume:
+  - platform: esp_audio_stack
+    esp_audio_stack_id: audio_stack
+    master_volume:
       id: master_volume
       name: "Master Volume"
       speaker_id: hw_speaker
+    mic_gain:
+      id: mic_gain
+      name: "Mic Gain (post-AFE)"
 
-# AFE diagnostic sensors
 sensor:
   - platform: esp_afe
     esp_afe_id: afe_processor

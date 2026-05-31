@@ -32,38 +32,14 @@ esphome:
     - priority: 200
       then:
         - lambda: |-
-            // 1. Enable ALL ADC clocks (ESPHome driver only enables ADC1+2)
-            uint8_t reg01;
-            if (!id(es7210_adc).read_byte(0x01, &reg01)) {
-              ESP_LOGE("es7210_tdm", "Failed to read reg 0x01, TDM config aborted");
-              return;
-            }
-            reg01 &= ~0x3F;  // Clear bits 0-5: enable ADC1-4 clocks + CP + BCLK
-            
-            if (!id(es7210_adc).write_byte(0x01, reg01) ||
-                !id(es7210_adc).write_byte(0x12, 0x02)) {  // Enable TDM I2S mode
-              ESP_LOGE("es7210_tdm", "Failed to write clock/TDM registers");
-              return;
-            }
-
-            // 2. Set gains
-            if (!id(es7210_adc).write_byte(0x43, 0x18) ||  // MIC1: 24dB
-                !id(es7210_adc).write_byte(0x44, 0x1A) ||  // MIC2 (AEC Reference): 30dB
-                !id(es7210_adc).write_byte(0x45, 0x18)) {  // MIC3: 24dB
-              ESP_LOGE("es7210_tdm", "Failed to write MIC gain registers");
-              return;
-            }
-
-            ESP_LOGI("es7210_tdm", "TDM config applied successfully!");
-            // Heap diagnostics — helps verify SPIRAM_USE_MALLOC is routing large
-            // allocations (LVGL draw buf 106KB) to PSRAM and freeing internal SRAM for I2S DMA.
+            // ES7210 TDM init and gain are now handled by esp_codec_dev inside esp_audio_stack.
+            // Heap snapshot: verify SPIRAM routing before I2S/AFE allocations.
             ESP_LOGI("heap", "Internal free: %u  DMA free: %u  DMA largest: %u  PSRAM free: %u",
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         - script.execute: update_leds
-        - script.execute: update_ui
 
 esp32:
   variant: esp32s3
@@ -125,9 +101,9 @@ packages:
   audio: !include core/audio.yaml
   va: !include core/va.yaml
   led: !include core/led.yaml
-  display: !include core/display.yaml
-  touchscreen: !include core/touchscreen.yaml
-  ui: !include core/ui.yaml
+  # display: !include core/display.yaml
+  # touchscreen: !include core/touchscreen.yaml
+  # ui: !include core/ui.yaml
 
 globals:
   - id: voice_assistant_phase
@@ -143,24 +119,3 @@ button:
   - platform: restart
     name: "Reboot"
 
-# DISABLED: this runtime number called es7210_adc.set_mic_gain(x), which the
-# ESPHome ES7210 driver applies to all enabled channels — including the AEC
-# reference slot (MIC2/0x44 @ 30 dB set in on_boot). Adjusting it at runtime
-# would clobber the AEC reference gain and degrade echo cancellation. The clean
-# overall-level lever is the per-MIC PGA set once in on_boot (ADR-012 stage 1);
-# post-AFE trim stays on the "Mic Gain (post-AFE)" number in core/audio.yaml.
-# number:
-#   - platform: template
-#     id: mic_gain_db
-#     name: "Mic Gain (ES7210 dB)"
-#     entity_category: config
-#     min_value: 0
-#     max_value: 36
-#     step: 3
-#     initial_value: 24
-#     set_action:
-#       - lambda: |-
-#           id(es7210_adc).set_mic_gain(x);   // adjust PGA on the fly
-#       - logger.log:
-#           format: "[MIC] Set ES7210 gain to %.0f dB"
-#           args: ["x"]
