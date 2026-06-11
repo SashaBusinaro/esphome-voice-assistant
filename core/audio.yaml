@@ -1,7 +1,13 @@
+# Local fork of n-IA-hane/esphome-intercom pinned at v2026.5.0 with two
+# backported fixes (see components/README.md). Upstream 2026.6.x removed
+# i2s_audio_duplex in favor of the GMF-based esp_audio_stack; with SE off this
+# pipeline runs single-mic MR anyway, so a 6.x port is possible via mic_num: 1
+# (see the audio-2026.6.2 branch for the comparison build).
 external_components:
-  - source: github://n-IA-hane/esphome-intercom@v2026.5.0
+  - source:
+      type: local
+      path: components
     components: [audio_processor, i2s_audio_duplex, esp_afe]
-    refresh: 0s
 
 i2c:
   id: i2c_bus
@@ -24,7 +30,7 @@ audio_dac:
     sample_rate: 48000
     use_mclk: true
     # No mic_gain here: the ES8311 is DAC-only on this board, all mics go
-    # through the ES7210 (ADR-012).
+    # through the ES7210.
 
 audio_adc:
   - platform: es7210
