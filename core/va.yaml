@@ -25,12 +25,12 @@ micro_wake_word:
   microphone: microphone_aec
   stop_after_detection: false
   models:
-    # Aggressive sensitivity: faster trigger at the cost of more false positives.
-    # Defaults for the Alexa model are probability_cutoff: 0.96 and
-    # sliding_window_size: 5. Tune up if false triggers become annoying.
-    - model: github://esphome/micro-wake-word-models/models/alexa.json@main
+    # Aggressive sensitivity: single-frame trigger above 0.7. Validated
+    # on-device: fast detection with no false positives observed in testing.
+    # Tune up (e.g. window 2-3) if false triggers appear in noisy conditions.
+    - model: github://esphome/micro-wake-word-models/models/okay_nabu.json@main
       probability_cutoff: 0.7
-      sliding_window_size: 3
+      sliding_window_size: 1
   on_wake_word_detected:
     then:
       - voice_assistant.start:
