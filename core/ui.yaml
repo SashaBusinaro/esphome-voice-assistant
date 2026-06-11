@@ -8,10 +8,11 @@ lvgl:
   displays:
     - disp1
   color_depth: 16
-  # 25% = ~108 KB DMA-capable internal RAM (LVGL flush callback needs DMA-able
-  # memory). Combined with AFE that fragments the internal heap below the ~26
-  # KB contiguous DMA block esp_wifi_init() needs for its RX pool. 10% = ~43 KB
-  # gives WiFi room to come up while still being plenty for a status-UI redraw.
+  # With SPIRAM_USE_MALLOC (waveshare.yaml) the draw buffer (>16 KB) is
+  # allocated in PSRAM, so this setting no longer pressures internal RAM.
+  # Note: LVGL clamps the partial buffer to a minimum and reports 12% even
+  # when 5% was requested (measured 2026-06-11), so values below ~12% are
+  # equivalent. 10% kept as the documented intent for a status-UI redraw.
   buffer_size: 10%
   log_level: WARN
 
