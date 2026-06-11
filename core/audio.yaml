@@ -23,7 +23,8 @@ audio_dac:
     bits_per_sample: 16bit
     sample_rate: 48000
     use_mclk: true
-    mic_gain: 24dB
+    # No mic_gain here: the ES8311 is DAC-only on this board, all mics go
+    # through the ES7210 (ADR-012).
 
 audio_adc:
   - platform: es7210
