@@ -108,9 +108,24 @@ voice_assistant:
   on_end:
     # Voice assistant finished all tasks.
     - logger.log: "[VA] Ended"
-    - wait_until:
-        not:
-          voice_assistant.is_running:
+    - if:
+        condition:
+          # Phase still "thinking" here means the run ended without any TTS
+          # (HassNevermind: "no"/"annulla"). In that flow RUN_END usually
+          # arrives while the mic is still stopping; the upstream handler only
+          # maps the streaming states and AWAITING_RESPONSE itself back to
+          # IDLE, so the component parks in AWAITING_RESPONSE forever —
+          # is_running never clears and request_start ignores the next wake
+          # word. While the mic is stopping, request_stop() redirects the
+          # desired state to IDLE, so stop here instead of waiting.
+          lambda: return id(voice_assistant_phase) == ${voice_assist_thinking_phase_id};
+        then:
+          - voice_assistant.stop:
+        else:
+          # TTS path: block until playback finishes so the replying UI persists.
+          - wait_until:
+              not:
+                voice_assistant.is_running:
     # Stop ducking audio.
     - mixer_speaker.apply_ducking:
         id: media_speaker_mix
