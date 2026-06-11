@@ -57,9 +57,14 @@ voice_assistant:
     - script.execute: update_ui
   on_client_disconnected:
     # Home Assistant disconnected.
-    # NOTE: do NOT log here. This handler runs inside ~APIConnection(); any log
-    # message re-enters APIServer::on_log on the client being destroyed and
-    # crashes with LoadProhibited (null unique_ptr in clients_).
+    # NOTE: this trigger fires inside ~APIConnection() / APIServer teardown.
+    # Any action that publishes state (logger.log -> on_log, light call ->
+    # on_light_update) re-enters the APIServer on the client being destroyed
+    # and crashes with LoadProhibited (confirmed twice via crash backtrace:
+    # first through logger, then through update_leds' LightCall::perform).
+    # The leading delay defers the whole action list to the next loop
+    # iteration, outside the teardown stack.
+    - delay: 10ms
     - voice_assistant.stop:
     - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
     - script.execute: update_leds
