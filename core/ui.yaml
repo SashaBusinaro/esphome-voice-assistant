@@ -5,6 +5,7 @@ globals:
     initial_value: '-1'
 
 lvgl:
+  id: lvgl_comp
   displays:
     - disp1
   color_depth: 16
@@ -116,6 +117,9 @@ script:
           if (target_state == id(g_applied_ui)) return;
           id(g_applied_ui) = target_state;
 
+          // Leaving idle: restart the render loop paused below.
+          if (id(lvgl_comp).is_paused()) id(lvgl_comp).set_paused(false, false);
+
           lv_obj_t *arc = id(ring_arc);
           lv_obj_t *dot = id(center_dot);
 
@@ -124,10 +128,16 @@ script:
           // Reset opacity so previous pulse doesn't bleed into new state
           lv_obj_set_style_arc_opa(arc, 255, LV_PART_INDICATOR);
 
-          // Idle: completely dark — hide arc and dot
+          // Idle: completely dark — hide arc and dot, then stop the LVGL loop.
+          // Idle is the dominant state and the frame is static; pausing skips
+          // lv_timer_handler() entirely (no refresh/animation ticks). The
+          // synchronous lv_refr_now flushes the final dark frame first so we
+          // never freeze on a stale ring.
           if (target_state == 1) {
             lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+            lv_refr_now(nullptr);
+            id(lvgl_comp).set_paused(true, false);
             return;
           }
 

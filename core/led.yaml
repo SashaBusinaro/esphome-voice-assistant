@@ -75,8 +75,10 @@ script:
       - delay: 2s
       - lambda: id(g_applied_led) = -1; id(g_applied_ui) = -1;
       - script.execute: update_leds
-      - script.execute: update_ui
 
+  # Per ADR-006, update_ui is chained at the end of this script: every call
+  # site only needs to invoke update_leds, and the g_applied_* guards make
+  # redundant invocations no-ops.
   - id: update_leds
     then:
       - lambda: |-
@@ -134,3 +136,4 @@ script:
               led->turn_off().perform();
               break;
           }
+      - script.execute: update_ui

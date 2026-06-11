@@ -55,27 +55,7 @@ esphome:
             }
 
             ESP_LOGI("es7210_tdm", "TDM config applied successfully!");
-            // Heap diagnostics — helps verify SPIRAM_USE_MALLOC is routing large
-            // allocations (LVGL draw buf 106KB) to PSRAM and freeing internal SRAM for I2S DMA.
-            ESP_LOGI("heap", "Internal free: %u  DMA free: %u  DMA largest: %u  PSRAM free: %u",
-                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
-                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
-                (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         - script.execute: update_leds
-        - script.execute: update_ui
-    # Steady-state heap snapshot, late enough for WiFi/API/log clients to be up
-    # so it is visible over network logs (the priority-200 snapshot above only
-    # shows on serial). Used to compare display-off vs display-on memory state.
-    - priority: -100
-      then:
-        - delay: 60s
-        - lambda: |-
-            ESP_LOGI("heap", "Steady-state (60s): Internal free: %u  DMA free: %u  DMA largest: %u  PSRAM free: %u",
-                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
-                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
-                (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
 esp32:
   variant: esp32s3
@@ -118,9 +98,14 @@ psram:
 network:
   enable_high_performance: true
 
-# Enable logging
+# Production logging: INFO compiles out every ESP_LOGD call site (smaller
+# binary, no debug formatting on the audio path; the [VA] trace logs in
+# core/va.yaml are DEBUG-level and disappear with them). baud_rate 0 disables
+# UART/USB-CDC output entirely — logs stay available over the native API
+# (`esphome logs` / HA). For bench debugging revert to DEBUG and drop baud_rate.
 logger:
-  level: DEBUG
+  level: INFO
+  baud_rate: 0
   logs:
     sensor: WARN
 

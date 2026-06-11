@@ -166,11 +166,9 @@ switch:
     turn_on_action:
       - microphone.mute: microphone_aec
       - script.execute: update_leds
-      - script.execute: update_ui
     turn_off_action:
       - microphone.unmute: microphone_aec
       - script.execute: update_leds
-      - script.execute: update_ui
 
 number:
   - platform: i2s_audio_duplex
@@ -183,13 +181,15 @@ number:
       name: "Master Volume"
       speaker_id: hw_speaker
 
-# AFE diagnostic sensors
-sensor:
-  - platform: esp_afe
-    esp_afe_id: afe_processor
-    input_volume:
-      name: "AFE Input Volume"
-      update_interval: 250ms
-    output_rms:
-      name: "AFE Output RMS"
-      update_interval: 250ms
+# DISABLED for production: configuring these sensors enables per-frame dBFS/RMS
+# computation on the audio task (set_*_sensor_enabled in esp_afe) plus 8 API
+# publishes/s. Re-enable temporarily when tuning gain staging (ADR-012).
+# sensor:
+#   - platform: esp_afe
+#     esp_afe_id: afe_processor
+#     input_volume:
+#       name: "AFE Input Volume"
+#       update_interval: 250ms
+#     output_rms:
+#       name: "AFE Output RMS"
+#       update_interval: 250ms

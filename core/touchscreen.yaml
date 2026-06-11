@@ -77,7 +77,7 @@ touchscreen:
           id(touch_start_x) = touch.x;
           id(touch_start_y) = touch.y;
           id(g_long_press_fired) = false;
-          ESP_LOGI("touch", "Touch start x=%d y=%d", touch.x, touch.y);
+          ESP_LOGD("touch", "Touch start x=%d y=%d", touch.x, touch.y);
     on_release:
       - lambda: |-
           if (!id(touch_started)) {
@@ -87,7 +87,7 @@ touchscreen:
           id(touch_started) = false;
           int sx = id(touch_start_x);
           int sy = id(touch_start_y);
-          ESP_LOGI("touch", "Release x=%d y=%d long_press=%d", sx, sy, (int)id(g_long_press_fired));
+          ESP_LOGD("touch", "Release x=%d y=%d long_press=%d", sx, sy, (int)id(g_long_press_fired));
           // Left [-] zone: volume down (130px wide, 166px tall)
           if (sx < 130 && sy >= 150 && sy <= 316) {
             float new_vol = std::max(0.0f, id(speaker_media_player).volume - 0.1f);
