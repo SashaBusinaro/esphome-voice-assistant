@@ -57,7 +57,9 @@ voice_assistant:
     - script.execute: update_ui
   on_client_disconnected:
     # Home Assistant disconnected.
-    - logger.log: "[VA] Client disconnected"
+    # NOTE: do NOT log here. This handler runs inside ~APIConnection(); any log
+    # message re-enters APIServer::on_log on the client being destroyed and
+    # crashes with LoadProhibited (null unique_ptr in clients_).
     - voice_assistant.stop:
     - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
     - script.execute: update_leds
