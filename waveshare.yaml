@@ -17,9 +17,11 @@ substitutions:
   # The voice assistant encountered an error
   voice_assist_error_phase_id: '11'
   
-  # LED Brightness
-  led_brightness_low: "0.4f"
-  led_brightness_high: "0.6f"
+  # LED Brightness. Low = passive status states, high = active VA states.
+  # Plain floats (no C++ "f" suffix) so the same value works both in lambdas
+  # (set_brightness) and in YAML percentage fields (effect max_brightness).
+  led_brightness_low: "0.15"
+  led_brightness_high: "0.25"
 
 esphome:
   name: "${name}"

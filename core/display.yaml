@@ -13,6 +13,10 @@ display:
     id: disp1
     model: CO5300
     bus_mode: quad
+    # Default is 10 MHz (~5 MB/s on quad): a full-ring redraw (~774 KB) took
+    # ~200 ms and blocked the main loop. CO5300 handles 40 MHz QSPI writes
+    # (Waveshare demos run it at 40+); if artifacts appear, fall back to 20MHz.
+    data_rate: 40MHz
     brightness: 255
     reset_pin: GPIO39
     cs_pin: GPIO12

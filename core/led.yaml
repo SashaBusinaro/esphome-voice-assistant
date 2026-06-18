@@ -22,13 +22,13 @@ light:
           transition_length: 1000ms
           update_interval: 1000ms
           min_brightness: 0%
-          max_brightness: 100%
+          max_brightness: ${led_brightness_high}
       - pulse:
           name: "Fast Pulse"
           transition_length: 300ms
           update_interval: 300ms
           min_brightness: 0%
-          max_brightness: 100%
+          max_brightness: ${led_brightness_high}
       - addressable_lambda:
           name: "Spin"
           update_interval: 50ms
@@ -44,7 +44,7 @@ light:
           name: "Error Flash"
           colors:
             - state: true
-              brightness: 100%
+              brightness: ${led_brightness_high}
               duration: 300ms
             - state: false
               duration: 300ms
@@ -121,6 +121,7 @@ script:
               led->turn_off().perform();
               break;
             case 2:  // voice_assist_waiting_for_command_phase_id
+            case 3:  // voice_assist_listening_for_command_phase_id
               led->turn_on().set_rgb(0.0f, 0.5f, 1.0f).set_brightness(${led_brightness_high}).set_effect("None").perform();
               break;
             case 4:  // voice_assist_thinking_phase_id

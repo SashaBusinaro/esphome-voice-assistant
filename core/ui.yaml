@@ -167,17 +167,18 @@ script:
               arc_end = 360;
               do_pulse = true; pulse_ms = 1200;
               break;
-            case 4:   // Thinking: blue, full ring, fast spin
+            case 4:   // Thinking: blue, full ring, static. Spinning a full
+                      // uniform ring produces no visible motion but forces
+                      // continuous redraws that stall the voice pipeline.
               color = lv_color_hex(0x0066FF);
               arc_end = 360;
-              do_spin = true; spin_ms = 1000;
               break;
             case 5:   // Replying: white, full ring, gentle pulse
               color = lv_color_hex(0xEEEEFF);
               arc_end = 360;
               do_pulse = true; pulse_ms = 800;
               break;
-            case 11:  // Error: red, full ring, fast flash
+            case 11:  // Error: red, full ring, fast dot flash
               color = lv_color_hex(0xFF0000);
               arc_end = 360;
               do_pulse = true; pulse_ms = 300;
