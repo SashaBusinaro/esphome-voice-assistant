@@ -12,4 +12,5 @@
 !/components/
 !/docs/
 !/.gitignore
+!/.github
 __pycache__/
