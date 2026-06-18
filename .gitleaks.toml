@@ -1,0 +1,20 @@
+# gitleaks configuration.
+# Extends the bundled default ruleset and only adds allowlist entries for
+# known, deliberate false positives.
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local-only secrets file and the one historical CI dummy api_key"
+commits = [
+  # This commit introduced a throwaway base64 dummy api_key in ci.yml (now
+  # replaced by a key generated at runtime). The value never authenticated
+  # anything; it only let the config compile in CI.
+  "527794b5a98ed03f32d1058ff7a9ad85c9007f71",
+]
+paths = [
+  # Real secrets live here, gitignored and never committed.
+  '''secrets\.yaml$''',
+]

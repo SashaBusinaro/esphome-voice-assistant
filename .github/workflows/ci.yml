@@ -30,16 +30,17 @@ jobs:
         uses: actions/checkout@v6
 
       # secrets.yaml is gitignored, so provide throwaway values just to let the
-      # config compile. The real secrets live only on the local build machine.
+      # config compile. Real secrets live only on the local build machine. The
+      # api_key is generated at runtime so no secret-looking string is committed.
       - name: Create dummy secrets for CI
         run: |
-          cat > secrets.yaml <<'EOF'
+          cat > secrets.yaml <<EOF
           wifi_ssid: "ci-dummy-ssid"
           wifi_password: "ci-dummy-password"
           wifi_static_ip: "192.168.1.50"
           wifi_gateway: "192.168.1.1"
           wifi_subnet: "255.255.255.0"
-          api_key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+          api_key: "$(openssl rand -base64 32)"
           ota_password: "ci-dummy-ota"
           EOF
 
@@ -48,3 +49,19 @@ jobs:
         with:
           yaml-file: waveshare.yaml
           version: 2026.5.3
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history so gitleaks scans every commit
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # GITLEAKS_LICENSE is only required for organization-owned repos;
+          # on a personal account the scan runs for free.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
