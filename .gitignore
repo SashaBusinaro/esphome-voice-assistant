@@ -6,10 +6,10 @@
 
 /*
 
-# Exception: keep waveshare.yaml, core/ directory, .gitignore, and .agents/ framework directory
+# Exception: keep the project source and README assets tracked
 !/waveshare.yaml
 !/core/
 !/components/
+!/docs/
 !/.gitignore
-!/.agents/
 __pycache__/
