@@ -1,6 +1,14 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'waveshare.yaml'
+      - 'core/**'
+      - 'components/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     paths:
       - 'waveshare.yaml'
